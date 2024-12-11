@@ -1,128 +1,357 @@
-// macro_rules! fmt_many_internal {
-//     () => {};
-// }
+macro_rules! fmt_internal_concat_literals {
+	($(""),* $(,)?) => {};
 
-// macro_rules! fmt_many {
-// 	($($l:literal),* $(,)?) => {
-// 		concat!($($l),*)
-// 	};
-//
-// 	($($l1:literal, )* $($e:expr $(, $l2:literal)*),* $(,)?) => {
-// 		concat!($($l),*)
-// 	};
-// }
-
-// macro_rules! write_many {
-// 	($write:expr $($(, $l1:literal)+)? $(, $e:expr $($(, $l2:literal)+)?)*) => {{
-// 		$write $()?
-// 	}};
-// }
-
-macro_rules! fmt {
-    ($($l:literal)*) => {
-    	concat!($($l),*)
-    };
-    // ($($l1:literal)? $({$e:expr} $($l2:literal)?)*) => {
-    //     // $crate::macros::fmt_list!()
-    //     {}
-    // };
-    ($($l1:literal)* $({ $e:expr } $($l2:literal)*)*) => {
-		$crate::macros::fmt_list_to_map_internal!(
-			name: field_name,
-			start_literals: { $($l1)* },
-			list: {
-				$({ $e } { $($l2)* }),*
-			},
-			out_map: {}
-		)
-        // $crate::macros::fmt!(
-		// 	$(concat!($($l1),+))?
-		// 	$(
-		// 		{$e}
-		// 		$(concat!($($l2),+))?
-		// 	)*
-		// )
-    };
+	($($l:expr),+ $(,)?) => {
+		concat!($($l),+)
+	};
 }
-pub(crate) use fmt;
+pub(crate) use fmt_internal_concat_literals;
 
-// macro_rules! fmt_list {
-// 	($($l:literal),* $(,)?) => {
-// 		concat!($($l),*)
-// 	};
-//
-// 	($($l:literal),*$($e:expr),* $(,)?) => {{
-// 		$crate::macros::fmt_list_to_map_internal!($($e),*; a;)
-// 	}};
-// }
-// pub(crate) use fmt_list;
+macro_rules! fmt_internal_write_literals {
+	($writer:expr => $(""),* $(,)?) => {};
 
-macro_rules! fmt_list_to_map_internal {
-    (
-		name: $name:expr,
-		start_literals: { $($start_literal:literal)* },
-		list: {
-			{ $expr:expr } { $($literal:literal)* }
-			$(, { $_expr:expr } { $($_literal:literal)* })*
-		},
-		out_map: {
-			$($out_field:expr => { $out_expr:expr } { $($out_literal:literal)* }),*
+	($writer:expr => $($l:expr),+ $(,)?) => {{
+		const S: &str = concat!($($l),+);
+		const LEN: usize = S.len();
+		const WRITE: bool = LEN != 0;
+
+		if WRITE {
+			$crate::write::Write::write_str($writer, S)?;
+		};
+	}};
+}
+pub(crate) use fmt_internal_write_literals;
+
+macro_rules! fmt_internal_write_value_2 {
+	($writer:expr, $value:expr => {}) => {{
+		$crate::write::Write::write($writer, $value)?
+	}};
+	($writer:expr, $value:expr => {?}) => {{
+		$crate::write::Write::write_debug($writer, $value)?
+	}};
+	($writer:expr, $value:expr => {display}) => {{
+		$crate::write::Write::write_fmtdisplay($writer, $value)?
+	}};
+	($writer:expr, $value:expr => {debug}) => {{
+		$crate::write::Write::write_fmtdebug($writer, $value)?
+	}};
+	($writer:expr, $value:expr => {$($tt:tt)*}) => {{
+		compile_error!(concat!("invalid formatting arguments: ", $(stringify!($tt)),*))
+	}};
+}
+pub(crate) use fmt_internal_write_value_2;
+
+macro_rules! fmt_internal_write_value {
+	($writer:expr, $struct_:expr => { $field_name:ident $(; $($tt:tt)*)? }) => {{
+		$crate::macros::fmt_internal_write_value_2!($writer, $struct_.$field_name => { $($($tt)*)? })
+	}};
+
+	($writer:expr $(, $struct_:expr)? => ($expr:expr $(; $($tt:tt)*)?)) => {{
+		use ::core::ops::Deref;
+		$crate::macros::fmt_internal_write_value_2!($writer, (&$expr).deref() => { $($($tt)*)? })
+	}};
+}
+pub(crate) use fmt_internal_write_value;
+
+macro_rules! fmt_internal {
+	// recursion
+
+	// literals
+	{
+		input: { $input:literal, $($inputs:tt, )* },
+		// input: { $($input:literal, )+ $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ,[$input] },
+			output_fields: { $($output_fields)* }
 		}
-	) => {{
-		// use $crate::macros::fmt_list_to_map_internal as fmt_list_to_map_internal;
-		// use $crate::macros::fmt_list_to_map_internal;
-    	// fmt_list_to_map_internal!(
-		// $crate::macros::fmt_list_to_map_internal!(
-		use $crate::macros::fmt_list_to_map_internal as fmt_list_to_map_internal_;
-    	fmt_list_to_map_internal_!(
-			name: a$name,
-			start_literals: { $($start_literal)* },
-			list: {
-				$({ $_expr } { $($_literal)* }),*
-			},
-			out_map: {
-				$name => { $expr } { $($literal)* }
-				$(, $out_field => { $out_expr } { $($out_literal)* })*
+	};
+	{
+		input: { ($input:literal $(;)?), $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ,[$input] },
+			output_fields: { $($output_fields)* }
+		}
+	};
+	{
+		input: { { $input:literal $(; $input_field_name:ident)? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ,[$input] },
+			output_fields: { $($output_fields)* }
+		}
+	};
+
+	// expressions that are literals after macro expansion (can be concatenated with `concat!()`)
+	{
+		input: { [$($input:expr)*], $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ,[$($input)*] },
+			output_fields: { $($output_fields)* }
+		}
+	};
+
+	// expressions that don't capture any external variables (consts, statics, fn call)
+	{
+		input: { ($input:expr $(; $($input_tt:tt)*)?), $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ;($input; $($($input_tt:tt)*)?) },
+			output_fields: { $($output_fields)* }
+		}
+	};
+
+	// expressions
+	{
+		input: { { $input_value:expr ; $input_field_name:ident $($input_tt:tt)* }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ;{ $input_field_name $($input_tt)* } },
+			output_fields: { $($output_fields)* { $input_field_name : $input_value } }
+		}
+	};
+	// same as above but automatic name using variable as name and value
+	{
+		input: { { $input_field_name:ident $($input_tt:tt)* }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {
+		$crate::macros::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* ;{ $input_field_name $($input_tt)* } },
+			output_fields: { $($output_fields)* { $input_field_name : $input_field_name } }
+		}
+	};
+
+	// error (macros must be in square brackets)
+	{
+		input: { $name:ident!$args:tt, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {{
+		compile_error!(concat!(
+			"macros must be in [square brackets]\n",
+			stringify!($name), "!", stringify!($args),
+		));
+	}};
+	// error
+	{
+		input: { $args:tt, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		output_fields: { $($output_fields:tt)* }
+	} => {{
+		compile_error!(concat!(
+			"expressions must be either valid literals or in (round), {curly} or [square] brackets\n",
+			"see documentation for the `fmt` macro\n",
+			stringify!($args),
+		));
+	}};
+
+	// terminate recursion
+
+	// only literals
+	{
+		input: {},
+		output: { $(,[$($output_literals:expr)*])* },
+		output_fields: {}
+	} => {
+		$crate::macros::fmt_internal_concat_literals!($($($output_literals, )*)*)
+	};
+
+	// only one expression that don't capture any external variables
+	{
+		input: {},
+		output: { $(,[$("")*])* ;($output:expr $(;)?) $(,[$("")*])* },
+		output_fields: {}
+	} => {{
+		use ::core::ops::Deref;
+		(&*$output).deref()
+	}};
+
+	// only one expression
+	{
+		input: {},
+		output: { $([,$("")*])* { $output:ident $(;)? }; $(,[$("")*])* },
+		output_fields: { { $output_field_name:ident : $output_field_value:expr } }
+	} => {{
+		use ::core::ops::Deref;
+		(&*$output_field_value).deref()
+	}};
+
+	// combination of writable sources, no captures
+		{
+		input: {},
+		output: { $(,[$($output_literals_start:expr)*])* $(;$output_values:tt $(,[$($output_literals:expr)*])*)+ },
+		output_fields: {}
+	} => {{
+		struct W;
+
+		impl $crate::writable::Writable for W {
+			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				where
+					W: $crate::write::Write + ?Sized {
+				$crate::macros::fmt_internal_write_literals!(w => $($($output_literals_start,)*)*);
+				$(
+					$crate::macros::fmt_internal_write_value!(w => $output_values);
+
+					$crate::macros::fmt_internal_write_literals!(w => $($($output_literals,)*)*);
+				)+
+
+				::core::result::Result::Ok(())
 			}
-		)
-    }};
-
-    (
-		name: $name:expr,
-		start_literals: { $($start_literal:literal)* },
-		list: {},
-		out_map: {
-			$($out_field:expr => { $out_expr:expr } { $($out_literal:literal)* }),*
 		}
 
-	) => {{
-		struct W< $($out_field),* > {
-    		$($out_field: $out_field),*
-    	}
+		W
+	}};
 
+
+	// combination of writable sources
+	{
+		input: {},
+		output: { $(,[$($output_literals_start:expr)*])* $(;$output_values:tt $(,[$($output_literals:expr)*])*)+ },
+		output_fields: { $({ $output_field_names:ident : $output_field_values:expr })+ }
+	} => {{
+		use ::core::ops::Deref;
+
+		// for syntax highlighting
+		{
+			$(let $output_field_names: u8;)*
+		}
+
+		#[allow(non_camel_case_types)]
+		struct W<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> {
+			$($output_field_names : &'a $output_field_names),+
+		}
+
+		#[allow(non_camel_case_types)]
+		impl<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> $crate::writable::Writable for W<'a, $($output_field_names),+> {
+			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				where
+					W: $crate::write::Write + ?Sized {
+				$crate::macros::fmt_internal_write_literals!(w => $($($output_literals_start,)*)*);
+				$(
+					$crate::macros::fmt_internal_write_value!(w, self => $output_values);
+
+					$crate::macros::fmt_internal_write_literals!(w => $($($output_literals,)*)*);
+				)+
+
+				::core::result::Result::Ok(())
+			}
+		}
+		// $(let $output_field_names = (&*$output_field_values).deref();)*
+		// W {
+		// 	$($output_field_names : $output_field_names),*
+		// }
+		use $crate::utils::DerefIgnoreMutForMut;
+		use $crate::utils::DerefIgnoreMut;
 		W {
-			$($out_field: $out_expr),*
+			$($output_field_names : $output_field_values.deref_ignore_mut()),*
+			// $($output_field_names : $output_field_values.deref()),*
+			// $($output_field_names : Deref::deref(&$output_field_values)),*
+			// $($output_field_names : (&*$output_field_values)),*
 		}
 	}};
 }
-pub(crate) use fmt_list_to_map_internal;
+pub(crate) use fmt_internal;
 
-macro_rules! fmt_map {
-    { $($f:ident: $e:expr),* $(,)? } => {{
-		struct W< $( $f ),* > {
-    		$($f: $f),*
-    	}
-
-		W {
-			$($f: $e),*
+#[macro_export]
+macro_rules! fmt {
+	($($tt:tt)+) => {
+		$crate::macros::fmt_internal! {
+			input: { $($tt, )+ },
+			output: {},
+			output_fields: {}
 		}
-	}};
+	};
 }
-pub(crate) use fmt_map;
 
-fn test() {
-    let b = "b123b";
-    let c = "c123c";
-    let y = fmt!("abc" {a} {b} "124" "123");
-    // y.a;
+// TODO: return closure
+macro_rules! fmt_fn {
+    () => {};
+}
+
+#[cfg(test)]
+#[test]
+#[allow(
+    clippy::allow_attributes,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_const_for_fn,
+    unused_variables,
+    unused_imports
+)]
+pub fn test() {
+    use crate::writable::{ToString, Writable};
+
+    macro_rules! xyz {
+        () => {
+            "XYZ"
+        };
+    }
+
+    let a = "abc";
+    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    s.to_string();
+
+    // let a = &mut "abc";
+    // let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    // s.to_string();
+
+    let a = String::from("abc");
+    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    s.to_string();
+
+    let a = &String::from("abc");
+    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    s.to_string();
+
+    let a = &mut String::from("abc");
+    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    s.to_string();
+
+    let a: Box<str> = Box::from("abc");
+    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    s.to_string();
+
+    let a = &3;
+    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    s.to_string();
+
+    const S: &str = fmt!("123" [xyz!()] "abc" "abc" 123);
+
+    const A: i32 = 32;
+    let s = fmt!("123" [xyz!()] "abc" {a} "123" (&A) "abc");
+    fn const_fn(a: i32, b: i32) -> i32 {
+        a + b
+    }
+    let s = fmt!("123" [xyz!()] "abc" (A) "abc" {456});
+    let s = fmt!("123" [xyz!()] "abc" (const_fn(1, 2)) "abc");
+
+    fn post_deref<T>(t: &T) -> &T
+    where
+        T: Writable,
+    {
+        t
+    }
 }
