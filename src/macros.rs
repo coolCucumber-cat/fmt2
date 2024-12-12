@@ -36,9 +36,9 @@ macro_rules! fmt_internal_write_value_2 {
 	($writer:expr, $value:expr => {debug}) => {{
 		$crate::write::Write::write_fmtdebug($writer, $value)?
 	}};
-	($writer:expr, $value:expr => {$($tt:tt)*}) => {{
+	($writer:expr, $value:expr => {$($tt:tt)*}) => {
 		compile_error!(concat!("invalid formatting arguments: ", $(stringify!($tt)),*))
-	}};
+	};
 }
 
 #[macro_export]
@@ -48,8 +48,11 @@ macro_rules! fmt_internal_write_value {
 	}};
 
 	($writer:expr $(, $struct_:expr)? => ($expr:expr; $($tt:tt)*)) => {{
-		use ::core::ops::Deref;
-		$crate::fmt_internal_write_value_2!($writer, (&$expr).deref() => { $($($tt)*)? })
+		use $crate::utils::DerefForWritable;
+		use $crate::utils::DerefForWritableMut;
+		use $crate::utils::DerefForWritableFmt;
+		// use ::core::ops::Deref;
+		$crate::fmt_internal_write_value_2!($writer, ($expr).deref_for_writable() => { $($($tt)*)? })
 	}};
 }
 
@@ -161,24 +164,24 @@ macro_rules! fmt_internal {
 		input: { $name:ident!$args:tt, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		output_fields: { $($output_fields:tt)* }
-	} => {{
+	} => {
 		compile_error!(concat!(
 			"macros must be in [square brackets]\n",
 			stringify!($name), "!", stringify!($args),
 		));
-	}};
+	};
 	// error
 	{
 		input: { $args:tt, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		output_fields: { $($output_fields:tt)* }
-	} => {{
+	} => {
 		compile_error!(concat!(
 			"expressions must be either valid literals or in (round), {curly} or [square] brackets\n",
 			"see documentation for the `fmt` macro\n",
 			stringify!($args),
 		));
-	}};
+	};
 
 	// terminate recursion
 
@@ -197,8 +200,10 @@ macro_rules! fmt_internal {
 		output: { $(,[$("")*])* ;($output:expr $(;)?) $(,[$("")*])* },
 		output_fields: {}
 	} => {{
-		use ::core::ops::Deref;
-		(&*$output).deref()
+		use $crate::utils::DerefForWritableMut;
+		use $crate::utils::DerefForWritableFmt;
+		use $crate::utils::DerefForWritable;
+		($output).deref_for_writable()
 	}};
 
 	// only one expression
@@ -207,8 +212,10 @@ macro_rules! fmt_internal {
 		output: { $([,$("")*])* { $output:ident $(;)? }; $(,[$("")*])* },
 		output_fields: { { $output_field_name:ident : $output_field_value:expr } }
 	} => {{
-		use ::core::ops::Deref;
-		(&*$output_field_value).deref()
+		use $crate::utils::DerefForWritableMut;
+		use $crate::utils::DerefForWritableFmt;
+		use $crate::utils::DerefForWritable;
+		($output_field_value).deref_for_writable()
 	}};
 
 	// combination of writable sources, no captures
@@ -220,6 +227,7 @@ macro_rules! fmt_internal {
 		struct W;
 
 		impl $crate::writable::Writable for W {
+			#[inline]
 			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 				where
 					W: $crate::write::Write + ?Sized {
@@ -231,6 +239,15 @@ macro_rules! fmt_internal {
 				)+
 
 				::core::result::Result::Ok(())
+			}
+		}
+
+		impl $crate::utils::DerefForWritableFmt for W {
+			type Target = Self;
+
+			#[inline]
+			fn deref_for_writable(&self) -> &Self::Target {
+				self
 			}
 		}
 
@@ -259,6 +276,7 @@ macro_rules! fmt_internal {
 
 		#[allow(non_camel_case_types)]
 		impl<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> $crate::writable::Writable for W<'a, $($output_field_names),+> {
+			#[inline]
 			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 				where
 					W: $crate::write::Write + ?Sized {
@@ -274,18 +292,30 @@ macro_rules! fmt_internal {
 		}
 
 		#[allow(non_camel_case_types)]
-		impl<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> ::core::ops::Deref for W<'a, $($output_field_names),+> {
-    		type Target = Self;
+		impl<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> $crate::utils::DerefForWritableFmt for W<'a, $($output_field_names),+> {
+			type Target = Self;
 
-    		fn deref(&self) -> &Self::Target {
+			#[inline]
+			fn deref_for_writable(&self) -> &Self::Target {
 				self
-    		}
+			}
 		}
 
-		use $crate::utils::DerefIgnoreMutForMut;
-		use $crate::utils::DerefIgnoreMut;
+		// 		#[allow(non_camel_case_types)]
+		// 		impl<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> ::core::ops::Deref for W<'a, $($output_field_names),+> {
+		//     		type Target = Self;
+		//
+		//			#[inline]
+		//     		fn deref(&self) -> &Self::Target {
+		// 				self
+		//     		}
+		// 		}
+
+		use $crate::utils::DerefForWritableMut;
+		use $crate::utils::DerefForWritableFmt;
+		use $crate::utils::DerefForWritable;
 		W {
-			$($output_field_names : ($output_field_values).deref_ignore_mut()),*
+			$($output_field_names : ($output_field_values).deref_for_writable()),*
 		}
 	}};
 }
@@ -386,6 +416,6 @@ pub fn test() {
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
-    let s = fmt!("123" [xyz!()] "abc" (A) "abc" {d:456});
-    let s = fmt!("123" [xyz!()] "abc" (const_fn(1, 2)) "abc");
+    let s = fmt!("123" [xyz!()] "abc" (&A) "abc" {d:456});
+    let s = fmt!("123" [xyz!()] "abc" (&const_fn(1, 2)) "abc");
 }

@@ -1,40 +1,65 @@
 use core::ops::Deref;
 
-pub trait DerefIgnoreMutForMut<'a> {
+pub trait DerefForWritableFmt {
     type Target: ?Sized;
 
     #[must_use]
-    fn deref_ignore_mut(self) -> &'a Self::Target;
+    fn deref_for_writable(&self) -> &Self::Target;
 }
 
-impl<'a, T: ?Sized, U: ?Sized> DerefIgnoreMutForMut<'a> for &'a mut T
+pub trait DerefForWritableMut<'a> {
+    type Target: ?Sized;
+
+    #[must_use]
+    fn deref_for_writable(self) -> &'a Self::Target;
+}
+
+impl<'a, T: ?Sized, U: ?Sized> DerefForWritableMut<'a> for &'a mut T
 where
     T: Deref<Target = U>,
 {
     type Target = U;
 
-    fn deref_ignore_mut(self) -> &'a U {
+    fn deref_for_writable(self) -> &'a Self::Target {
         Deref::deref(self)
     }
 }
 
-pub trait DerefIgnoreMut {
+pub trait DerefForWritable<'a> {
     type Target: ?Sized;
 
     #[must_use]
-    fn deref_ignore_mut(&self) -> &Self::Target;
+    fn deref_for_writable(self) -> &'a Self::Target;
 }
 
-impl<T: ?Sized, U: ?Sized> DerefIgnoreMut for T
+impl<'a, T: ?Sized, U: ?Sized> DerefForWritable<'a> for &'a T
 where
     T: Deref<Target = U>,
 {
     type Target = U;
 
-    fn deref_ignore_mut(&self) -> &U {
+    fn deref_for_writable(self) -> &'a Self::Target {
         Deref::deref(self)
     }
 }
+
+// pub trait DerefForWritable {
+//     type Target: ?Sized;
+//
+//     #[must_use]
+//     fn deref_for_writable(&self) -> &Self::Target;
+// }
+//
+// impl<T: ?Sized, U: ?Sized> DerefForWritable for T
+// where
+//     T: Deref<Target = U>,
+// {
+//     type Target = U;
+//
+//     fn deref_for_writable(&self) -> &Self::Target {
+//         Deref::deref(self)
+//     }
+// }
 
 #[allow(unused)]
 fn test() {
@@ -42,8 +67,8 @@ fn test() {
     let b: &String = &String::new();
     let c: &mut String = &mut String::new();
 
-    let a = a.deref_ignore_mut();
-    let b = b.deref_ignore_mut();
-    let c = c.deref_ignore_mut();
-    let c = c.deref_ignore_mut();
+    let a = a.deref_for_writable();
+    let b = b.deref_for_writable();
+    let c = c.deref_for_writable();
+    let c = c.deref_for_writable();
 }
