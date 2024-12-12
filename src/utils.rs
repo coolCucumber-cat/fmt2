@@ -36,6 +36,7 @@ where
     }
 }
 
+#[allow(unused)]
 fn test() {
     let a: String = String::new();
     let b: &String = &String::new();

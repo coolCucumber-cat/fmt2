@@ -1,5 +1,3 @@
-use core::ops::Deref;
-
 use crate::writable::{Writable, WritableDebug};
 
 pub trait Write {
@@ -49,14 +47,24 @@ pub trait Write {
     where
         D: core::fmt::Display + ?Sized,
     {
-        fmtwrite_adapter(self, |w| d.fmt(&mut core::fmt::Formatter::new(w)))
+        fmtwrite_adapter(self, |w| {
+            d.fmt(&mut core::fmt::Formatter::new(
+                w,
+                core::fmt::FormattingOptions::new(),
+            ))
+        })
     }
 
     fn write_fmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Debug + ?Sized,
     {
-        fmtwrite_adapter(self, |w| d.fmt(&mut core::fmt::Formatter::new(w)))
+        fmtwrite_adapter(self, |w| {
+            d.fmt(&mut core::fmt::Formatter::new(
+                w,
+                core::fmt::FormattingOptions::new(),
+            ))
+        })
     }
 
     fn write_fmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
