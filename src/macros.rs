@@ -25,20 +25,20 @@ macro_rules! fmt_internal_write_literals {
 #[macro_export]
 macro_rules! fmt_internal_write_value_2 {
 	($writer:expr, $value:expr => {}) => {{
-		$crate::write::Write::write($writer, $value)?
+		$crate::write::Write::write_without_flush_hint_($writer, $value)?
 	}};
 	($writer:expr, $value:expr => {?}) => {{
 		$crate::write::Write::write_debug($writer, $value)?
 	}};
-	($writer:expr, $value:expr => {display}) => {{
-		$crate::write::Write::write_fmtdisplay($writer, $value)?
+	($writer:expr, $value:expr => {std}) => {{
+		$crate::write::Write::write_stdfmtdisplay($writer, $value)?
 	}};
-	($writer:expr, $value:expr => {debug}) => {{
-		$crate::write::Write::write_fmtdebug($writer, $value)?
+	($writer:expr, $value:expr => {std?}) => {{
+		$crate::write::Write::write_stdfmtdebug($writer, $value)?
 	}};
-	($writer:expr, $value:expr => {$($tt:tt)*}) => {
+	($writer:expr, $value:expr => {$($tt:tt)*}) => {{
 		compile_error!(concat!("invalid formatting arguments: ", $(stringify!($tt)),*))
-	};
+	}};
 }
 
 #[macro_export]
@@ -51,9 +51,49 @@ macro_rules! fmt_internal_write_value {
 		use $crate::utils::DerefForWritable;
 		use $crate::utils::DerefForWritableMut;
 		use $crate::utils::DerefForWritableFmt;
-		// use ::core::ops::Deref;
 		$crate::fmt_internal_write_value_2!($writer, ($expr).deref_for_writable() => { $($($tt)*)? })
 	}};
+}
+
+#[macro_export]
+macro_rules! fmt_internal_len_hint_literals {
+	($(""),* $(,)?) => { 0 };
+
+	($($l:expr),+ $(,)?) => {{
+		const S: &str = concat!($($l),+);
+		const LEN: usize = S.len();
+		LEN
+	}};
+}
+
+#[macro_export]
+macro_rules! fmt_internal_len_hint_value_2 {
+	($value:expr => {}) => {{
+		$crate::writable::Writable::len_hint($value)
+	}};
+	($value:expr => {?}) => {{
+		$crate::writable::WritableDebug::len_hint($value)
+	}};
+	($value:expr => {std}) => { 0 };
+	($value:expr => {std?}) => { 0 };
+	($value:expr => {$($tt:tt)*}) => {{
+		compile_error!(concat!("invalid formatting arguments: ", $(stringify!($tt)),*))
+	}};
+}
+
+#[macro_export]
+macro_rules! fmt_internal_len_hint_value {
+	($struct_:expr => { $field_name:ident; $($tt:tt)* }) => {{
+		$crate::fmt_internal_len_hint_value_2!($struct_.$field_name => { $($($tt)*)? })
+	}};
+
+	($($struct_:expr)? => ($expr:expr; $($tt:tt)*)) => { 0 };
+	// ($($struct_:expr)? => ($expr:expr; $($tt:tt)*)) => {{
+	// 	use $crate::utils::DerefForWritable;
+	// 	use $crate::utils::DerefForWritableMut;
+	// 	use $crate::utils::DerefForWritableFmt;
+	// 	$crate::fmt_internal_len_hint_value_2!($writer, ($expr).deref_for_writable() => { $($($tt)*)? })
+	// }};
 }
 
 #[macro_export]
@@ -164,24 +204,24 @@ macro_rules! fmt_internal {
 		input: { $name:ident!$args:tt, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		output_fields: { $($output_fields:tt)* }
-	} => {
+	} => {{
 		compile_error!(concat!(
 			"macros must be in [square brackets]\n",
 			stringify!($name), "!", stringify!($args),
 		));
-	};
+	}};
 	// error
 	{
 		input: { $args:tt, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		output_fields: { $($output_fields:tt)* }
-	} => {
+	} => {{
 		compile_error!(concat!(
 			"expressions must be either valid literals or in (round), {curly} or [square] brackets\n",
 			"see documentation for the `fmt` macro\n",
 			stringify!($args),
 		));
-	};
+	}};
 
 	// terminate recursion
 
@@ -240,6 +280,19 @@ macro_rules! fmt_internal {
 
 				::core::result::Result::Ok(())
 			}
+
+			#[inline]
+			fn len_hint(&self) -> usize {
+				const CONST_LEN: usize = $crate::fmt_internal_len_hint_literals!(
+					$($($output_literals_start,)*)*
+					$(
+						$($($output_literals,)*)*
+					)+
+				);
+				CONST_LEN $(
+					+ $crate::fmt_internal_len_hint_value!(=> $output_values)
+				)+
+			}
 		}
 
 		impl $crate::utils::DerefForWritableFmt for W {
@@ -261,8 +314,6 @@ macro_rules! fmt_internal {
 		output: { $(,[$($output_literals_start:expr)*])* $(;$output_values:tt $(,[$($output_literals:expr)*])*)+ },
 		output_fields: { $({ $output_field_names:ident : $output_field_values:expr })+ }
 	} => {{
-		// use ::core::ops::Deref;
-
 		// for syntax highlighting
 		#[allow(unused)]
 		{
@@ -289,6 +340,19 @@ macro_rules! fmt_internal {
 
 				::core::result::Result::Ok(())
 			}
+
+			#[inline]
+			fn len_hint(&self) -> usize {
+				const CONST_LEN: usize = $crate::fmt_internal_len_hint_literals!(
+					$($($output_literals_start,)*)*
+					$(
+						$($($output_literals,)*)*
+					)+
+				);
+				CONST_LEN $(
+					+ $crate::fmt_internal_len_hint_value!(self => $output_values)
+				)+
+			}
 		}
 
 		#[allow(non_camel_case_types)]
@@ -314,7 +378,9 @@ macro_rules! fmt_internal {
 		use $crate::utils::DerefForWritableMut;
 		use $crate::utils::DerefForWritableFmt;
 		use $crate::utils::DerefForWritable;
+		use ::core::ops::Deref;
 		W {
+			// $($output_field_names : (&$output_field_values).deref()),*
 			$($output_field_names : ($output_field_values).deref_for_writable()),*
 		}
 	}};
@@ -328,6 +394,27 @@ macro_rules! fmt {
 			output: {},
 			output_fields: {}
 		}
+	};
+}
+
+#[macro_export]
+macro_rules! fmt_struct {
+	($value:expr => $name:ident { $($field:ident),* }) => {
+		$crate::fmt!([stringify!($name)] " { " $(", " [stringify!($field)] ": " {$field:$value.$field})* "}")
+	};
+}
+
+#[macro_export]
+macro_rules! fmt_tuple_struct {
+	($value:expr => $name:ident { $($field:ident),* }) => {
+		$crate::fmt!([stringify!($name)] " { " $([stringify!($field)] ": " {$field:$value.$field} ", ")* "}")
+	};
+}
+
+#[macro_export]
+macro_rules! fmt_unit_struct {
+	($value:expr => $name:ident { $($field:ident),* }) => {
+		$crate::fmt!([stringify!($name)] " { " $([stringify!($field)] ": " {$field:$value.$field} ", ")* "}")
 	};
 }
 
@@ -372,6 +459,16 @@ pub fn test() {
 
     use crate::writable::{ToString, Writable};
 
+    struct Struct {
+        a: &'static i32,
+        b: &'static bool,
+    }
+
+    let struct_ = Struct { a: &12, b: &true };
+    let s = fmt_struct!(struct_ => Struct { a, b });
+    let s0 = s.to_string();
+    assert_eq!(s0, "Struct { a: 12, b: true, }");
+
     macro_rules! xyz {
         () => {
             "XYZ"
@@ -380,26 +477,33 @@ pub fn test() {
 
     let a = "abc";
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s0 = ToString::to_string(&s);
+    assert_eq!(s0.len(), s.len_hint());
 
     let a = &mut *String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
+    assert_eq!(s0.len(), s.len_hint());
 
     let a = String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
+    assert_eq!(s0.len(), s.len_hint());
 
     let a = &String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
+    assert_eq!(s0.len(), s.len_hint());
 
     let a = &mut String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
+    assert_eq!(s0.len(), s.len_hint());
 
     let a: Box<str> = Box::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
+    assert_eq!(s0.len(), s.len_hint());
 
     let a = &3_i32;
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
@@ -410,12 +514,17 @@ pub fn test() {
 
     const _S: &str = fmt!("123" [xyz!()] "abc" "abc" 123);
 
-    let a: i32 = 3;
+    let a = &3_i32;
     const A: i32 = 32;
-    let s = fmt!("123" [xyz!()] "abc" {&a} "123" (&A) "abc");
+    let s = fmt!("123" [xyz!()] "abc" {a} "123" (&A) "abc");
+    let s0 = ToString::to_string(&s);
+
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
     let s = fmt!("123" [xyz!()] "abc" (&A) "abc" {d:456});
+    let s0 = ToString::to_string(&s);
+
     let s = fmt!("123" [xyz!()] "abc" (&const_fn(1, 2)) "abc");
+    let s0 = ToString::to_string(&s);
 }

@@ -1,39 +1,39 @@
+use crate::write::Write;
+
 pub trait Writable {
     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
 }
 
 pub trait WritableDebug {
     fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
 }
 
-// impl Writable for str {
-//     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
-//     where
-//         W: Write + ?Sized,
-//     {
-//         w.write_str(self)
-//     }
-// }
-
 impl WritableDebug for str {
+    #[inline]
     fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
         w.write_str(self)
     }
-}
 
-impl WritableDebug for &str {
-    fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized,
-    {
-        w.write_str(self)
+    #[inline]
+    fn len_hint(&self) -> usize {
+        self.len()
     }
 }
 
@@ -45,31 +45,6 @@ pub trait WritableStaticStr {
     fn static_str(&self) -> &'static str;
 }
 
-pub trait WritableStr {
-    fn str(&self) -> &str;
-}
-
-impl WritableStr for str {
-    #[inline]
-    fn str(&self) -> &str {
-        self
-    }
-}
-
-// impl WritableStr for &str {
-//     #[inline]
-//     fn str(&self) -> &str {
-//         self
-//     }
-// }
-//
-// impl WritableStr for String {
-//     #[inline]
-//     fn str(&self) -> &str {
-//         self
-//     }
-// }
-
 impl<T> WritableStaticStr for T
 where
     T: WritableConstStr + ?Sized,
@@ -78,6 +53,10 @@ where
     fn static_str(&self) -> &'static str {
         Self::CONST_STR
     }
+}
+
+pub trait WritableStr {
+    fn str(&self) -> &str;
 }
 
 impl<T> WritableStr for T
@@ -101,6 +80,18 @@ where
     {
         w.write_str(self.str())
     }
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        self.str().len()
+    }
+}
+
+impl WritableStr for str {
+    #[inline]
+    fn str(&self) -> &str {
+        self
+    }
 }
 
 impl WritableStaticStr for bool {
@@ -122,7 +113,7 @@ where
     T: Writable + ?Sized,
 {
     fn to_string(&self) -> String {
-        let mut s = String::new();
+        let mut s = String::with_capacity(self.len_hint());
         s.write(self).into_ok();
         s
     }
@@ -157,14 +148,6 @@ impl<T, U> WithWritableStr<T, U> {
     }
 }
 
-// impl<T, U> WritableStr for WithWritableStr<T, U>
-// where
-//     U: WritableStr,
-// {
-//     fn str(&self) -> &str {
-//         self.writable.str()
-//     }
-// }
 impl<T, U> WritableStr for WithWritableStr<T, &'_ U>
 where
     U: WritableStr + ?Sized,
@@ -185,78 +168,6 @@ where
     }
 }
 
-// impl<T0, T1, U> Deref for WithWritableStr<T0, U>
-// where
-//     T0: Deref<Target = T1>,
-//     T1: ?Sized,
-// {
-//     type Target = T1;
-//
-//     #[inline]
-//     #[expect(clippy::explicit_deref_methods)]
-//     fn deref(&self) -> &Self::Target {
-//         self.value.deref()
-//     }
-// }
-impl<T, U> Deref for WithWritableStr<T, U> {
-    type Target = Self;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-pub struct FmtDisplayWritable<'d, D>(pub &'d D)
-where
-    D: core::fmt::Display + ?Sized;
-
-impl<D> Writable for FmtDisplayWritable<'_, D>
-where
-    D: core::fmt::Display + ?Sized,
-{
-    #[inline]
-    fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized,
-    {
-        w.write_fmtdisplay(self.0)
-    }
-}
-
-pub trait FmtDisplayAsWriteTo: core::fmt::Display {
-    fn fmt_display_as_write_to(&self) -> FmtDisplayWritable<Self>;
-}
-
-impl<D> FmtDisplayAsWriteTo for D
-where
-    D: core::fmt::Display,
-{
-    #[inline]
-    fn fmt_display_as_write_to(&self) -> FmtDisplayWritable<Self> {
-        FmtDisplayWritable(self)
-    }
-}
-
-#[macro_export]
-macro_rules! impl_writable_for_display {
-	{ $($name:ty ),* $(,)? } => {
-		$(
-			impl Writable for $name {
-				#[inline]
-				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_fmtdisplay(self)
-				}
-			}
-		)*
-	};
-}
-use core::ops::Deref;
-
-impl_writable_for_display!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
-
 #[macro_export]
 macro_rules! impl_writable_const_str_for {
 	{ $($name:path $(=> $value:expr)?),* $(,)? } => {
@@ -270,13 +181,31 @@ macro_rules! impl_writable_const_str_for {
 }
 
 #[macro_export]
+macro_rules! impl_writable_for_display {
+	{ $($name:ty ),* $(,)? } => {
+		$(
+			impl Writable for $name {
+				#[inline]
+				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtdisplay(self)
+				}
+			}
+		)*
+	};
+}
+
+impl_writable_for_display!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+
+#[macro_export]
 macro_rules! impl_display_for_writable {
 	{ $($name:ty),* $(,)? } => {
 		$(
 			impl ::core::fmt::Display for $name {
 				#[inline]
 				fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-					::fmt2::writable::Writable::write_to(self, f)
+					::fmt2::write::Write::write(f, self)
 				}
 			}
 		)*
@@ -297,40 +226,6 @@ macro_rules! impl_display_for_writable_str {
 	};
 }
 
-#[macro_export]
-macro_rules! impl_write_flush_for_io_write {
-	($($ty:ty),* $(,)?) => {
-		$(
-			impl $crate::write::Write for $ty {
-				type Error = ::std::io::Error;
-
-				#[inline]
-				fn write_str(&mut self, s: &str) -> ::core::result::Result<(), Self::Error> {
-					::std::io::Write::write_all(self, s.as_bytes())
-				}
-			}
-
-			impl $crate::write::Flush for $ty {
-				type Error = ::std::io::Error;
-
-				#[inline]
-				fn flush(&mut self) -> ::core::result::Result<(), Self::Error> {
-					::std::io::Write::flush(self)
-				}
-			}
-		)*
-	};
-}
-
-use crate::write::Write;
-
-impl_write_flush_for_io_write!(
-    std::io::Stdout,
-    std::io::StdoutLock<'_>,
-    std::io::Stderr,
-    std::io::StderrLock<'_>
-);
-
 #[cfg(test)]
 #[test]
 #[allow(
@@ -343,6 +238,7 @@ impl_write_flush_for_io_write!(
     unused_imports
 )]
 fn test() {
+    use core::ops::Deref;
     // {
     // 		#[derive(Clone, Copy)]
     // 		pub struct A<T, U = &'static str> {
