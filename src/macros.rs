@@ -365,22 +365,11 @@ macro_rules! fmt_internal {
 			}
 		}
 
-		// 		#[allow(non_camel_case_types)]
-		// 		impl<'a, $($output_field_names : $crate::writable::Writable + ?Sized),+> ::core::ops::Deref for W<'a, $($output_field_names),+> {
-		//     		type Target = Self;
-		//
-		//			#[inline]
-		//     		fn deref(&self) -> &Self::Target {
-		// 				self
-		//     		}
-		// 		}
-
 		use $crate::utils::DerefForWritableMut;
 		use $crate::utils::DerefForWritableFmt;
 		use $crate::utils::DerefForWritable;
 		use ::core::ops::Deref;
 		W {
-			// $($output_field_names : (&$output_field_values).deref()),*
 			$($output_field_names : ($output_field_values).deref_for_writable()),*
 		}
 	}};
@@ -491,12 +480,12 @@ pub fn test() {
     assert_eq!(s0.len(), s.len_hint());
 
     let a = &String::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!("123" [xyz!()] "abc" {a: *a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
 
     let a = &mut String::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!("123" [xyz!()] "abc" {a: *a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
 
