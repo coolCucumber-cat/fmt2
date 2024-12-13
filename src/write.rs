@@ -8,7 +8,7 @@ pub trait Write {
     #[inline]
     fn writeln_str(&mut self, s: &str) -> Result<(), Self::Error> {
         self.write_str(s)?;
-        self.write_str("\n")
+        self.write_newline()
     }
 
     #[inline]
@@ -16,15 +16,26 @@ pub trait Write {
     where
         WT: Writable + ?Sized,
     {
+        self.write_without_flush_hint_(wt)?;
+        self.flush_hint();
+        Ok(())
+    }
+
+    #[inline]
+    fn write_without_flush_hint_<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
+    where
+        WT: Writable + ?Sized,
+    {
         wt.write_to(self)
     }
 
+    #[inline]
     fn writeln<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
     where
         WT: Writable + ?Sized,
     {
-        wt.write_to(self)?;
-        self.write_str("\n")
+        self.write(wt)?;
+        self.write_newline()
     }
 
     #[inline]
@@ -35,19 +46,31 @@ pub trait Write {
         wt.write_to_debug(self)
     }
 
+    #[inline]
+    fn writeln_debug<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
+    where
+        WT: WritableDebug + ?Sized,
+    {
+        self.write_debug(wt)?;
+        self.write_newline()
+    }
+
+    #[inline]
     fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
         self.write_str(c.encode_utf8(&mut [0; 4]))
     }
 
+    #[inline]
     fn write_newline(&mut self) -> Result<(), Self::Error> {
         self.write_str("\n")
     }
 
-    fn write_fmtdisplay<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    #[inline]
+    fn write_stdfmtdisplay<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Display + ?Sized,
     {
-        fmtwrite_adapter(self, |w| {
+        stdfmtwrite_adapter(self, |w| {
             d.fmt(&mut core::fmt::Formatter::new(
                 w,
                 core::fmt::FormattingOptions::new(),
@@ -55,11 +78,12 @@ pub trait Write {
         })
     }
 
-    fn write_fmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    #[inline]
+    fn write_stdfmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Debug + ?Sized,
     {
-        fmtwrite_adapter(self, |w| {
+        stdfmtwrite_adapter(self, |w| {
             d.fmt(&mut core::fmt::Formatter::new(
                 w,
                 core::fmt::FormattingOptions::new(),
@@ -67,13 +91,17 @@ pub trait Write {
         })
     }
 
-    fn write_fmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
+    #[inline]
+    fn write_stdfmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
         if let Some(s) = args.as_str() {
             self.write_str(s)
         } else {
-            fmtwrite_adapter(self, |w| core::fmt::write(w, args))
+            stdfmtwrite_adapter(self, |w| core::fmt::write(w, args))
         }
     }
+
+    #[inline]
+    fn flush_hint(&mut self) {}
 }
 
 impl<W> Write for W
@@ -82,6 +110,7 @@ where
 {
     type Error = !;
 
+    #[inline]
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
         self.write_str_infallible(s);
         Ok(())
@@ -96,21 +125,24 @@ impl Write for core::fmt::Formatter<'_> {
         core::fmt::Formatter::write_str(self, s)
     }
 
-    fn write_fmtdisplay<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    #[inline]
+    fn write_stdfmtdisplay<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Display + ?Sized,
     {
         d.fmt(self)
     }
 
-    fn write_fmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    #[inline]
+    fn write_stdfmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Debug + ?Sized,
     {
         d.fmt(self)
     }
 
-    fn write_fmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
+    #[inline]
+    fn write_stdfmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
         self.write_fmt(args)
     }
 }
@@ -124,7 +156,8 @@ impl Write for core::fmt::Formatter<'_> {
 // 	}
 // }
 
-fn fmtwrite_adapter<W0>(
+#[inline]
+fn stdfmtwrite_adapter<W0>(
     write: &mut W0,
     f: impl FnOnce(&mut dyn core::fmt::Write) -> core::fmt::Result,
 ) -> Result<(), W0::Error>
@@ -143,6 +176,7 @@ where
     where
         W: Write + ?Sized,
     {
+        #[inline]
         fn write_str(&mut self, s: &str) -> core::fmt::Result {
             match self.write.write_str(s) {
                 Ok(()) => Ok(()),
@@ -180,6 +214,7 @@ pub trait WriteInfallible {
 }
 
 impl WriteInfallible for String {
+    #[inline]
     fn write_str_infallible(&mut self, s: &str) {
         self.push_str(s);
     }
@@ -200,66 +235,6 @@ pub trait Flush {
     fn flush(&mut self) -> Result<(), Self::Error>;
 }
 
-// pub trait WriteFlush: Write<Error = Self::_Error> {
-// 	type _Error;
-//
-// 	// fn flush(&mut self) -> Result<(), Self::_Error>;
-// 	fn flush(&mut self) -> Result<(), Self::Error>;
-// }
-// default impl<WF> WriteFlush for WF
-// where
-// 	WF: Write,
-// {
-// 	type _Error = WF::Error;
-//
-// 	fn flush(&mut self) -> Result<(), Self::Error> {
-// 		Ok(())
-// 	}
-// }
-//
-// impl<WF, E> WriteFlush for WF
-// where
-// 	WF: Write<Error = E> + Flush<Error = E>,
-// {
-// 	type _Error = E;
-//
-// 	fn flush(&mut self) -> Result<(), Self::Error> {
-// 		Flush::flush(self)
-// 	}
-// }
-// pub trait _WriteFlush: Write<Error = Self::_Error> {
-// 	type _Error;
-// }
-//
-// pub trait WriteFlush: _WriteFlush {
-// 	fn flush(&mut self) -> Result<(), Self::_Error>;
-// }
-//
-// impl<WF> _WriteFlush for WF
-// where
-// 	WF: Write,
-// {
-// 	type _Error = WF::Error;
-// }
-//
-// default impl<WF, E> WriteFlush for WF
-// where
-// 	WF: Write<Error = E>,
-// {
-// 	fn flush(&mut self) -> Result<(), E> {
-// 		Ok(())
-// 	}
-// }
-//
-// impl<WF, E> WriteFlush for WF
-// where
-// 	WF: Write<Error = E> + Flush<Error = E>,
-// {
-// 	fn flush(&mut self) -> Result<(), Self::Error> {
-// 		Flush::flush(self)
-// 	}
-// }
-
 pub trait WriteFlush: Write<Error = Self::_Error> + Flush<Error = Self::_Error> {
     type _Error;
 }
@@ -271,42 +246,43 @@ where
     type _Error = E;
 }
 
-pub trait FlushHint {
-    type Error;
-    fn flush_hint(&mut self) -> Result<(), Self::Error>;
-    // fn flush_hint(&mut self) {}
+#[macro_export]
+macro_rules! impl_write_flush_for_io_write {
+	($($ty:ty),* $(,)?) => {
+		$(
+			impl $crate::write::Write for $ty {
+				type Error = ::std::io::Error;
+
+				#[inline]
+				fn write_str(&mut self, s: &str) -> ::core::result::Result<(), Self::Error> {
+					::std::io::Write::write_all(self, s.as_bytes())
+				}
+
+                #[inline]
+                fn writeln<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
+                where
+                    WT: Writable + ?Sized,
+                {
+                    self.write_without_flush_hint_(wt)?;
+                    self.write_newline()
+                }
+			}
+
+			impl $crate::write::Flush for $ty {
+				type Error = ::std::io::Error;
+
+				#[inline]
+				fn flush(&mut self) -> ::core::result::Result<(), Self::Error> {
+					::std::io::Write::flush(self)
+				}
+			}
+		)*
+	};
 }
 
-// impl<W> FlushHint for W
-// where
-// 	W: Write,
-// {
-// 	default type Error = W::Error;
-//
-// 	default fn flush_hint(&mut self) -> Result<(), Self::Error> {
-// 		Ok(())
-// 	}
-// }
-// impl<W, E> FlushHint for W
-// where
-// 	W: Write<Error = E> + Flush<Error = E>,
-// {
-// 	type Error = <W as Flush>::Error;
-//
-// 	fn flush_hint(&mut self) -> Result<(), Self::Error> {
-// 		self.flush()
-// 	}
-// }
-// pub trait FlushHint {
-// 	fn flush_hint(&mut self) {}
-// }
-//
-// default impl<W> FlushHint for W where W: Write {}
-// impl<W> FlushHint for W
-// where
-// 	W: Write + Flush,
-// {
-// 	fn flush_hint(&mut self) {
-// 		self.flush();
-// 	}
-// }
+impl_write_flush_for_io_write!(
+    std::io::Stdout,
+    std::io::StdoutLock<'_>,
+    std::io::Stderr,
+    std::io::StderrLock<'_>
+);
