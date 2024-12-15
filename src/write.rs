@@ -34,8 +34,10 @@ pub trait Write {
     where
         WT: Writable + ?Sized,
     {
-        self.write(wt)?;
-        self.write_newline()
+        self.write_without_flush_hint_(wt)?;
+        self.write_newline()?;
+        self.flush_hint();
+        Ok(())
     }
 
     #[inline]
@@ -43,16 +45,17 @@ pub trait Write {
     where
         WT: WritableDebug + ?Sized,
     {
-        wt.write_to_debug(self)
+        self.write_debug_without_flush_hint_(wt)?;
+        self.flush_hint();
+        Ok(())
     }
 
     #[inline]
-    fn writeln_debug<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
+    fn write_debug_without_flush_hint_<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
     where
         WT: WritableDebug + ?Sized,
     {
-        self.write_debug(wt)?;
-        self.write_newline()
+        wt.write_to_debug(self)
     }
 
     #[inline]
@@ -82,6 +85,35 @@ pub trait Write {
     fn write_stdfmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Debug + ?Sized,
+    {
+        stdfmtwrite_adapter(self, |w| {
+            d.fmt(&mut core::fmt::Formatter::new(
+                w,
+                core::fmt::FormattingOptions::new(),
+            ))
+        })
+    }
+
+    #[inline]
+    fn write_stdfmtprecision<D>(
+        &mut self,
+        d: &D,
+        precision: Option<usize>,
+    ) -> Result<(), Self::Error>
+    where
+        D: core::fmt::Display + ?Sized,
+    {
+        stdfmtwrite_adapter(self, |w| {
+            let mut options = core::fmt::FormattingOptions::new();
+            options.precision(precision);
+            d.fmt(&mut core::fmt::Formatter::new(w, options))
+        })
+    }
+
+    #[inline]
+    fn write_stdfmtbinary<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    where
+        D: core::fmt::Binary + ?Sized,
     {
         stdfmtwrite_adapter(self, |w| {
             d.fmt(&mut core::fmt::Formatter::new(

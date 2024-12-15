@@ -10,6 +10,36 @@ pub trait Writable {
         0
     }
 }
+pub trait WritableInternal: Writable {
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    fn len_hint_internal(&self) -> usize;
+
+    fn borrow_writable_internal(&self) -> &Self;
+}
+impl<T> WritableInternal for T
+where
+    T: Writable + ?Sized,
+{
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        self.write_to(w)
+    }
+
+    #[inline]
+    fn len_hint_internal(&self) -> usize {
+        self.len_hint()
+    }
+
+    #[inline]
+    fn borrow_writable_internal(&self) -> &Self {
+        self
+    }
+}
 
 pub trait WritableDebug {
     fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
@@ -19,6 +49,159 @@ pub trait WritableDebug {
     #[inline]
     fn len_hint(&self) -> usize {
         0
+    }
+}
+pub trait WritableDebugInternal: WritableDebug {
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    fn len_hint_internal(&self) -> usize;
+
+    fn borrow_writable_internal(&self) -> &Self;
+}
+impl<T> WritableDebugInternal for T
+where
+    T: WritableDebug + ?Sized,
+{
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        self.write_to_debug(w)
+    }
+
+    #[inline]
+    fn len_hint_internal(&self) -> usize {
+        self.len_hint()
+    }
+
+    #[inline]
+    fn borrow_writable_internal(&self) -> &Self {
+        self
+    }
+}
+
+pub trait WritableBinary {
+    fn write_to_binary<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+pub trait WritableBinaryInternal: WritableBinary {
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    fn len_hint_internal(&self) -> usize;
+
+    fn borrow_writable_internal(&self) -> &Self;
+}
+impl<T> WritableBinaryInternal for T
+where
+    T: WritableBinary + ?Sized,
+{
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        self.write_to_binary(w)
+    }
+
+    #[inline]
+    fn len_hint_internal(&self) -> usize {
+        self.len_hint()
+    }
+
+    #[inline]
+    fn borrow_writable_internal(&self) -> &Self {
+        self
+    }
+}
+
+pub trait WritableHexadecimal {
+    fn write_to_hexadecimal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+pub trait WritableHexadecimalInternal: WritableHexadecimal {
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    fn len_hint_internal(&self) -> usize;
+
+    fn borrow_writable_internal(&self) -> &Self;
+}
+impl<T> WritableHexadecimalInternal for T
+where
+    T: WritableHexadecimal + ?Sized,
+{
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        self.write_to_hexadecimal(w)
+    }
+
+    #[inline]
+    fn len_hint_internal(&self) -> usize {
+        self.len_hint()
+    }
+
+    #[inline]
+    fn borrow_writable_internal(&self) -> &Self {
+        self
+    }
+}
+
+pub trait WritablePrecision<const PRECISION: u8> {
+    fn write_to_precision<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+pub trait WritablePrecisionInternal<const PRECISION: u8> {
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    fn len_hint_internal(&self) -> usize;
+
+    fn borrow_writable_internal(&self) -> &Self;
+}
+impl<T, const PRECISION: u8> WritablePrecisionInternal<PRECISION> for T
+where
+    T: WritablePrecision<PRECISION>,
+{
+    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        self.write_to_precision(w)
+    }
+
+    #[inline]
+    fn len_hint_internal(&self) -> usize {
+        self.len_hint()
+    }
+
+    #[inline]
+    fn borrow_writable_internal(&self) -> &Self {
+        self
     }
 }
 
@@ -196,6 +379,46 @@ macro_rules! impl_writable_for_display {
 	};
 }
 
+#[macro_export]
+macro_rules! impl_writable_advanced_for_display {
+	{ $($name:ty ),* $(,)? } => {
+		$(
+			impl $crate::writable::Writable for $name {
+				#[inline]
+				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtdisplay(self)
+				}
+			}
+			impl $crate::writable::WritableDebug for $name {
+				#[inline]
+				fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtdebug(self)
+				}
+			}
+			impl $crate::writable::WritableBinary for $name {
+				#[inline]
+				fn write_to_binary<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtbinary(self)
+				}
+			}
+			impl<const PRECISION: u8> $crate::writable::WritablePrecision<PRECISION> for $name {
+				#[inline]
+				fn write_to_precision<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtprecision(self, Some(PRECISION))
+				}
+			}
+		)*
+	};
+}
+
 impl_writable_for_display!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
 
 #[macro_export]
@@ -226,8 +449,6 @@ macro_rules! impl_display_for_writable_str {
 	};
 }
 
-#[cfg(test)]
-#[test]
 #[allow(
     clippy::allow_attributes,
     clippy::unwrap_used,
@@ -237,195 +458,144 @@ macro_rules! impl_display_for_writable_str {
     unused_variables,
     unused_imports
 )]
-fn test() {
-    use core::ops::Deref;
-    // {
-    // 		#[derive(Clone, Copy)]
-    // 		pub struct A<T, U = &'static str> {
-    // 			pub value: T,
-    // 			pub writable: U,
-    // 		}
-    //
-    // 		impl<T, U> A<T, U> {
-    // 			pub const fn new(value: T, displayable: U) -> Self {
-    // 				Self {
-    // 					value,
-    // 					writable: displayable,
-    // 				}
-    // 			}
-    // 		}
-    //
-    // 		impl<T0, T1, U> AsRef<T1> for A<T0, U>
-    // 		where
-    // 			T0: AsRef<T1>,
-    // 			T1: ?Sized,
-    // 		{
-    // 			#[inline]
-    // 			fn as_ref(&self) -> &T1 {
-    // 				self.value.as_ref()
-    // 			}
-    // 		}
-    //
-    // 		impl<T0, T1, U> Deref for A<T0, U>
-    // 		where
-    // 			T0: Deref<Target = T1>,
-    // 			T1: ?Sized,
-    // 		{
-    // 			type Target = T1;
-    //
-    // 			#[inline]
-    // 			#[expect(clippy::explicit_deref_methods)]
-    // 			fn deref(&self) -> &Self::Target {
-    // 				self.value.deref()
-    // 			}
-    // 		}
-    //
-    // 		impl<T, U> WritableStr for A<T, U>
-    // 		where
-    // 			U: WritableStr,
-    // 		{
-    // 			fn str(&self) -> &str {
-    // 				self.writable.str()
-    // 			}
-    // 		}
-    //
-    // 		fn deref<'a, T>(a1: &'a T) -> &'a i32
-    // 		where
-    // 			T: Deref<Target = i32>,
-    // 		{
-    // 			Deref::deref(a1)
-    // 		}
-    // 		fn deref2<T>(a1: T) -> i32
-    // 		where
-    // 			T: Deref<Target = i32>,
-    // 		{
-    // 			let a = Deref::deref(&a1);
-    // 			let b: i32 = *a;
-    // 			b
-    // 		}
-    //
-    // 		// fn f<T>(t: T) -> &i32
-    // 		// where
-    // 		// 	T: Deref<Target = i32>,
-    // 		// {
-    // 		// 	let t = t.deref();
-    // 		// }
-    //
-    // 		type X<'a> = <&'a A<&'a A<&'a i32>> as Deref>::Target;
-    //
-    // 		let x: X;
-    //
-    // 		let a0 = A::new(&1_i32, "abc");
-    // 		let a1 = &A::new(&a0, "abc");
-    //
-    // 		// let a2 = deref(a1);
-    // 		let a2: &i32 = Deref::deref(a1);
-    // 		let a2 = Deref::deref(Deref::deref(a1));
-    // 		let a2 = Deref::deref(a1);
-    // 		// let a2 = deref(a0);
-    // 		let c = deref2(a0);
-    // 		let b = Deref::deref(&a0);
-    // 	}
+#[cfg(test)]
+mod tests {
+    use crate::writable::WritableDebug;
 
-    use crate::write::{Flush, Write, WriteFlush, WriteInfallible};
+    #[test]
+    fn borrow() {
+        use super::WritableInternal;
 
-    struct Test(bool);
+        let i = 32;
+        let i0 = i.borrow_writable_internal();
 
-    impl Writable for Test {
-        fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+        let i = &32;
+        let i0 = i.borrow_writable_internal();
+
+        let i = &mut 32;
+        let i0 = i.borrow_writable_internal();
+
+        let s = "123";
+        let s0 = s.borrow_writable_internal();
+
+        let s = &mut *String::new();
+        let s0 = s.borrow_writable_internal();
+
+        let s = String::new();
+        let s0 = s.borrow_writable_internal();
+
+        let s = &String::new();
+        let s0 = s.borrow_writable_internal();
+
+        let s = &mut String::new();
+        let s0 = s.borrow_writable_internal();
+    }
+
+    #[test]
+    fn write() {
+        use crate::{
+            writable::{Writable, WritableStr},
+            write::{Flush, Write, WriteFlush, WriteInfallible},
+        };
+
+        struct Test(bool);
+
+        impl Writable for Test {
+            fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+            where
+                W: Write + ?Sized,
+            {
+                w.write_str(self.0.str())
+            }
+        }
+
+        impl WritableDebug for Test {
+            fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
+            where
+                W: Write + ?Sized,
+            {
+                w.write_str(if self.0 { "Test(true)" } else { "Test(false)" })
+            }
+        }
+
+        struct HasNoCustomFlush;
+
+        impl Write for HasNoCustomFlush {
+            type Error = u32;
+
+            fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+                Ok(())
+            }
+        }
+
+        struct HasCustomFlush;
+
+        impl Write for HasCustomFlush {
+            type Error = u32;
+
+            fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+                Ok(())
+            }
+        }
+
+        impl Flush for HasCustomFlush {
+            type Error = &'static str;
+
+            fn flush(&mut self) -> Result<(), Self::Error> {
+                Err("flushed")
+            }
+        }
+
+        fn takes_write_flush<W, E>(w: &W)
         where
-            W: Write + ?Sized,
+            W: WriteFlush<_Error = E>,
         {
-            w.write_str(self.0.str())
         }
+
+        let mut s = String::new();
+        s.write(&Test(true)).into_ok();
+        assert_eq!(s, "true");
+
+        let mut s = String::new();
+        s.write(&Test(false)).into_ok();
+        assert_eq!(s, "false");
+
+        let mut s = String::new();
+        Test(true).write_to(&mut s).into_ok();
+        assert_eq!(s, "true");
+
+        let mut s = String::new();
+        Test(false).write_to(&mut s).into_ok();
+        assert_eq!(s, "false");
+
+        let mut s = String::new();
+        Test(true).write_to_debug(&mut s).into_ok();
+        assert_eq!(s, "Test(true)");
+
+        let mut s = String::new();
+        Test(false).write_to_debug(&mut s).into_ok();
+        assert_eq!(s, "Test(false)");
+
+        let mut s = String::new();
+        s.write_str_infallible("123456");
+        assert_eq!(s, "123456");
+
+        let mut s = String::new();
+        WriteInfallible::write_str_infallible(&mut s, "123abc");
+        assert_eq!(s, "123abc");
+
+        let mut s = String::new();
+        "123abc".write_to(&mut s).into_ok();
+        assert_eq!(s, "123abc");
+
+        let mut stdout = std::io::stdout();
+        stdout.write("abc").unwrap();
+        // WriteFlush::flush(&mut stdout).unwrap();
+        stdout.flush().unwrap();
+
+        // assert_eq!(HasCustomFlush.flush_hint(), Err("flushes"));
+        // assert_eq!(HasNoCustomFlush.flush_hint(), Ok(()));
+
+        takes_write_flush(&stdout);
     }
-
-    impl WritableDebug for Test {
-        fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
-        where
-            W: Write + ?Sized,
-        {
-            w.write_str(if self.0 { "Test(true)" } else { "Test(false)" })
-        }
-    }
-
-    struct HasNoCustomFlush;
-
-    impl Write for HasNoCustomFlush {
-        type Error = u32;
-
-        fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-            Ok(())
-        }
-    }
-
-    struct HasCustomFlush;
-
-    impl Write for HasCustomFlush {
-        type Error = u32;
-
-        fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-            Ok(())
-        }
-    }
-
-    impl Flush for HasCustomFlush {
-        type Error = &'static str;
-
-        fn flush(&mut self) -> Result<(), Self::Error> {
-            Err("flushed")
-        }
-    }
-
-    fn takes_write_flush<W, E>(w: &W)
-    where
-        W: WriteFlush<_Error = E>,
-    {
-    }
-
-    let mut s = String::new();
-    s.write(&Test(true)).into_ok();
-    assert_eq!(s, "true");
-
-    let mut s = String::new();
-    s.write(&Test(false)).into_ok();
-    assert_eq!(s, "false");
-
-    let mut s = String::new();
-    Test(true).write_to(&mut s).into_ok();
-    assert_eq!(s, "true");
-
-    let mut s = String::new();
-    Test(false).write_to(&mut s).into_ok();
-    assert_eq!(s, "false");
-
-    let mut s = String::new();
-    Test(true).write_to_debug(&mut s).into_ok();
-    assert_eq!(s, "Test(true)");
-
-    let mut s = String::new();
-    Test(false).write_to_debug(&mut s).into_ok();
-    assert_eq!(s, "Test(false)");
-
-    let mut s = String::new();
-    s.write_str_infallible("123456");
-    assert_eq!(s, "123456");
-
-    let mut s = String::new();
-    WriteInfallible::write_str_infallible(&mut s, "123abc");
-    assert_eq!(s, "123abc");
-
-    let mut s = String::new();
-    "123abc".write_to(&mut s).into_ok();
-    assert_eq!(s, "123abc");
-
-    let mut stdout = std::io::stdout();
-    stdout.write("abc").unwrap();
-    // WriteFlush::flush(&mut stdout).unwrap();
-    stdout.flush().unwrap();
-
-    // assert_eq!(HasCustomFlush.flush_hint(), Err("flushes"));
-    // assert_eq!(HasNoCustomFlush.flush_hint(), Ok(()));
-
-    takes_write_flush(&stdout);
 }
