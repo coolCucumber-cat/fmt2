@@ -124,6 +124,19 @@ pub trait Write {
     }
 
     #[inline]
+    fn write_stdfmthexadecimal<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    where
+        D: core::fmt::LowerHex + ?Sized,
+    {
+        stdfmtwrite_adapter(self, |w| {
+            d.fmt(&mut core::fmt::Formatter::new(
+                w,
+                core::fmt::FormattingOptions::new(),
+            ))
+        })
+    }
+
+    #[inline]
     fn write_stdfmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
         if let Some(s) = args.as_str() {
             self.write_str(s)

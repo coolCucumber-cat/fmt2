@@ -10,8 +10,70 @@ pub trait Writable {
         0
     }
 }
+
+pub trait WritableDebug {
+    fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+
+pub trait WritableBinary {
+    fn write_to_binary<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+
+pub trait WritableHexadecimal {
+    fn write_to_hexadecimal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+
+pub trait WritablePrecision {
+    fn write_to_precision<W, const PRECISION: u8>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized;
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        0
+    }
+}
+
+pub trait BorrowWritable {
+    type Target: ?Sized + Writable;
+    fn borrow_writable(&self) -> &Self::Target;
+}
+impl<T> BorrowWritable for T
+where
+    T: Writable + ?Sized,
+{
+    type Target = Self;
+    fn borrow_writable(&self) -> &Self::Target {
+        self
+    }
+}
+
 pub trait WritableInternal: Writable {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
 
@@ -23,7 +85,10 @@ impl<T> WritableInternal for T
 where
     T: Writable + ?Sized,
 {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
@@ -40,19 +105,11 @@ where
         self
     }
 }
-
-pub trait WritableDebug {
-    fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized;
-
-    #[inline]
-    fn len_hint(&self) -> usize {
-        0
-    }
-}
 pub trait WritableDebugInternal: WritableDebug {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
 
@@ -64,7 +121,10 @@ impl<T> WritableDebugInternal for T
 where
     T: WritableDebug + ?Sized,
 {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
@@ -81,19 +141,11 @@ where
         self
     }
 }
-
-pub trait WritableBinary {
-    fn write_to_binary<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized;
-
-    #[inline]
-    fn len_hint(&self) -> usize {
-        0
-    }
-}
 pub trait WritableBinaryInternal: WritableBinary {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
 
@@ -105,7 +157,10 @@ impl<T> WritableBinaryInternal for T
 where
     T: WritableBinary + ?Sized,
 {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
@@ -122,19 +177,11 @@ where
         self
     }
 }
-
-pub trait WritableHexadecimal {
-    fn write_to_hexadecimal<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized;
-
-    #[inline]
-    fn len_hint(&self) -> usize {
-        0
-    }
-}
 pub trait WritableHexadecimalInternal: WritableHexadecimal {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
 
@@ -146,7 +193,10 @@ impl<T> WritableHexadecimalInternal for T
 where
     T: WritableHexadecimal + ?Sized,
 {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
@@ -164,18 +214,13 @@ where
     }
 }
 
-pub trait WritablePrecision<const PRECISION: u8> {
-    fn write_to_precision<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized;
+pub trait WritablePrecisionInternal {
+    type Target: ?Sized;
 
-    #[inline]
-    fn len_hint(&self) -> usize {
-        0
-    }
-}
-pub trait WritablePrecisionInternal<const PRECISION: u8> {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized;
 
@@ -183,15 +228,20 @@ pub trait WritablePrecisionInternal<const PRECISION: u8> {
 
     fn borrow_writable_internal(&self) -> &Self;
 }
-impl<T, const PRECISION: u8> WritablePrecisionInternal<PRECISION> for T
+impl<T> WritablePrecisionInternal for T
 where
-    T: WritablePrecision<PRECISION>,
+    T: WritablePrecision,
 {
-    fn write_to_internal<W>(&self, w: &mut W) -> Result<(), W::Error>
+    type Target = Self;
+
+    fn write_to_internal<W, const PRECISION: u8, const ALT: bool>(
+        &self,
+        w: &mut W,
+    ) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
-        self.write_to_precision(w)
+        self.write_to_precision::<W, PRECISION>(w)
     }
 
     #[inline]
@@ -379,8 +429,7 @@ macro_rules! impl_writable_for_display {
 	};
 }
 
-#[macro_export]
-macro_rules! impl_writable_advanced_for_display {
+macro_rules! impl_writable_int_for_display {
 	{ $($name:ty ),* $(,)? } => {
 		$(
 			impl $crate::writable::Writable for $name {
@@ -407,19 +456,50 @@ macro_rules! impl_writable_advanced_for_display {
 					w.write_stdfmtbinary(self)
 				}
 			}
-			impl<const PRECISION: u8> $crate::writable::WritablePrecision<PRECISION> for $name {
+			impl $crate::writable::WritableHexadecimal for $name {
 				#[inline]
-				fn write_to_precision<W>(&self, w: &mut W) -> Result<(), W::Error>
+				fn write_to_hexadecimal<W>(&self, w: &mut W) -> Result<(), W::Error>
 					where
 						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtprecision(self, Some(PRECISION))
+					w.write_stdfmthexadecimal(self)
+				}
+			}
+		)*
+	};
+}
+macro_rules! impl_writable_float_for_display {
+	{ $($name:ty ),* $(,)? } => {
+		$(
+			impl $crate::writable::Writable for $name {
+				#[inline]
+				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtdisplay(self)
+				}
+			}
+			impl $crate::writable::WritableDebug for $name {
+				#[inline]
+				fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtdebug(self)
+				}
+			}
+			impl $crate::writable::WritablePrecision for $name {
+				#[inline]
+				fn write_to_precision<W, const PRECISION: u8>(&self, w: &mut W) -> Result<(), W::Error>
+					where
+						W: $crate::write::Write + ?Sized {
+					w.write_stdfmtprecision(self, Some(PRECISION as usize))
 				}
 			}
 		)*
 	};
 }
 
-impl_writable_for_display!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+impl_writable_int_for_display!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
+impl_writable_float_for_display!(f32, f64);
 
 #[macro_export]
 macro_rules! impl_display_for_writable {
@@ -460,7 +540,11 @@ macro_rules! impl_display_for_writable_str {
 )]
 #[cfg(test)]
 mod tests {
-    use crate::writable::WritableDebug;
+    use core::borrow::Borrow;
+
+    use crate::writable::{Writable, WritableDebug};
+
+    use super::ToString;
 
     #[test]
     fn borrow() {
@@ -489,6 +573,22 @@ mod tests {
 
         let s = &mut String::new();
         let s0 = s.borrow_writable_internal();
+
+        struct OwnedWritable<'a, T>(&'a T)
+        where
+            T: Writable + ?Sized;
+
+        // impl<'a, T> Writable for OwnedWritable<'a, T>
+        // where
+        //     T: Writable + ?Sized,
+        // {
+        //     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+        //     where
+        //         W: crate::write::Write + ?Sized,
+        //     {
+        //         w.write(self.0)
+        //     }
+        // }
     }
 
     #[test]

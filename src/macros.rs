@@ -98,25 +98,39 @@ macro_rules! fmt_internal_len_hint_value {
 
 #[macro_export]
 macro_rules! fmt_internal_write {
-	($writer:expr => ($value:expr; $ty:path)) => {{
-		use $ty;
-		$value.write_to_internal($writer)?;
-		// $ty::write_to_internal($value.borrow_writable_internal(), $writer)?;
+	($writer:expr => { $value:expr; [$ty:path, $precision:expr, $alt:expr] }) => {{
+		use $ty as A;
+		A::write_to_internal::<_, $precision, $alt>($value, $writer)?;
 	}};
 
-	($writer:expr => [$("", )+]) => {{
-		const S: &str = ::core::concat!($($value),+);
-		if S.len() != 0 {
-			$crate::writable::WritableInternal::write_to_internal(S, $writer)?;
-		}
+	($writer:expr => ($value:expr; [$ty:path, $precision:expr, $alt:expr])) => {{
+		use $ty as A;
+		A::write_to_internal::<_, $precision, $alt>($value.borrow_writable_internal(), $writer)?;
+	}};
+
+	($writer:expr => [$("", )*]) => {{
+		compile_error!("unreachable. impossible to be empty");
 	}};
 
 	($writer:expr => [$($value:expr, )+]) => {{
 		const S: &str = ::core::concat!($($value),+);
 		if S.len() != 0 {
-			$crate::writable::WritableInternal::write_to_internal(S, $writer)?;
+			$crate::write::Write::write_str($writer, S)?;
 		}
 	}};
+}
+
+#[macro_export]
+macro_rules! fmt_internal_trait_from_args {
+    () => {};
+}
+#[macro_export]
+macro_rules! fmt_internal_alt_from_args {
+    () => {};
+}
+#[macro_export]
+macro_rules! fmt_internal_precision_from_args {
+    () => {};
 }
 
 #[doc(hidden)]
@@ -131,7 +145,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value $crate::writable::WritableInternal}, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableInternal, 0, false] }, },
 			args: $args
 		}
 	};
@@ -144,7 +158,20 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value $crate::writable::WritableDebugInternal}, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableDebugInternal, 0, false] }, },
+			args: $args
+		}
+	};
+	{
+		value: $value:tt,
+		fmt_args: {#?},
+		input: { $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableDebugInternal, 0, true] }, },
 			args: $args
 		}
 	};
@@ -157,7 +184,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value $crate::writable::WritableBinaryInternal}, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableBinaryInternal, 0, false] }, },
 			args: $args
 		}
 	};
@@ -170,7 +197,20 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value $crate::writable::WritableHexadecimalInternal}, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableHexadecimalInternal, 0, false] }, },
+			args: $args
+		}
+	};
+	{
+		value: $value:tt,
+		fmt_args: {#h},
+		input: { $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableHexadecimalInternal, 0, true] }, },
 			args: $args
 		}
 	};
@@ -183,7 +223,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value $crate::writable::WritablePrecisionInternal::<$precision>}, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritablePrecisionInternal, $precision, false] }, },
 			args: $args
 		}
 	};
@@ -248,7 +288,7 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal_fmt_args! {
 			value: ($input),
-			fmt_args: { $($fmt_args)* },
+			fmt_args: { $($($fmt_args)*)? },
 			input: { $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -263,7 +303,21 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal_fmt_args! {
 			value: { $input_field_name : $input_value },
-			fmt_args: { $($fmt_args)* },
+			fmt_args: { $($($fmt_args)*)? },
+			input: { $($inputs, )* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+
+	{
+		input: { { $input_field_name:ident $($input_ty:ty)? : $input_value:expr $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal_fmt_args! {
+			value: { $input_field_name $($input_ty)? : $input_value },
+			fmt_args: { $($($fmt_args)*)? },
 			input: { $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -271,19 +325,16 @@ macro_rules! fmt_internal {
 	};
 	// same as above but automatic name using variable as name and value
 	{
-		input: { { $input_field_name:ident $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		input: { { $input_field_name:ident $($input_ty:ty)? $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::fmt_internal_fmt_args! {
-			value: { $input_field_name : $input_field_name },
-			fmt_args: { $($fmt_args)* },
-			input: { $($inputs, )* },
+		$crate::fmt_internal! {
+			input: { { $input_field_name $($input_ty)? : $input_field_name; $($($fmt_args)*)? }, $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
-
 
 	// error (macros must be in square brackets)
 	{
@@ -339,29 +390,40 @@ macro_rules! fmt_internal_2 {
 			args: $args
 		}
 	};
+	{
+		input: { $(literal { [$("", )*] }, )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal_2! {
+			input: { $(expr $inputs_a, $($inputs_b $inputs_c,)*)? },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
 
 	// expressions that don't capture any external variables (consts, statics, fn call)
 	{
-		input: { expr { ($input_value:expr) $input_ty:path }, $($inputs:tt)* },
+		input: { expr { ($input_value:expr) $input_fmt_args:tt }, $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal_2! {
 			input: { $($inputs)* },
-			output: { $($outputs)* internal ($input_value; $input_ty), },
+			output: { $($outputs)* internal ($input_value; $input_fmt_args), },
 			args: $args
 		}
 	};
 
 	// expressions
 	{
-		input: { expr { { $input_field_name:ident : $input_value:expr } $input_ty:path }, $($inputs:tt)* },
+		input: { expr { { $input_field_name:ident : $input_value:expr } $input_fmt_args:tt }, $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal_2! {
 			input: { $($inputs)* },
-			output: { $($outputs)* external { $input_field_name : $input_value; $input_ty }, },
+			output: { $($outputs)* external { $input_field_name : $input_value; $input_fmt_args }, },
 			args: $args
 		}
 	};
@@ -450,7 +512,7 @@ macro_rules! fmt_internal_2 {
 	// combination of writable sources
 	{
 		input: {},
-		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $value:expr; $ty:path }, $(internal $internal:tt,)*)+ },
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $value:expr; [$ty:path, $precision:expr, $alt:expr] }, $(internal $internal:tt,)*)+ },
 		args: $args:tt
 	} => {&{
 		// for syntax highlighting
@@ -474,20 +536,11 @@ macro_rules! fmt_internal_2 {
 					$crate::fmt_internal_write!(w => $internal0);
 				)*
 				$(
-					{
-						use $ty;
-						self.$field_name.write_to_internal(w)?;
-					};
+					$crate::fmt_internal_write!(w => { self.$field_name; [$ty, $precision, $alt] });
 					$(
 						$crate::fmt_internal_write!(w => $internal);
 					)*
 				)+
-				// $({
-				// 	$ty::write_to_internal(self.$field_name, w)?;
-				// 	$(
-				// 		$crate::fmt_internal_write!(w => $internal);
-				// 	)*
-				// })+
 
 				::core::result::Result::Ok(())
 			}
@@ -507,6 +560,11 @@ macro_rules! fmt_internal_2 {
 			}
 		}
 
+		// W {
+		// 	$($field_name : {
+		// 		<_ as $ty>::borrow_writable_internal(($value).borrow())
+		// 	}),*
+		// }
 		W {
 			$($field_name : {
 				use $ty;
@@ -646,14 +704,28 @@ pub fn test() {
     const _S: &str = fmt!("123" [xyz!()] "abc" "abc" 123);
 
     let a = 3_i32;
-    const A: i32 = 32;
-    let s = fmt!("123" [xyz!()] "abc" {a} "123" (&A) "abc");
+    const I: i32 = 32;
+    let s = fmt!("123" [xyz!()] "abc" {a} "123" (I) "abc");
     let s0 = ToString::to_string(s);
+
+    let a = 3_i32;
+    let s = fmt!("123" [xyz!()] "abc" {a;?} "123" (I;?) "abc");
+    let s0 = ToString::to_string(s);
+
+    let a = 3_i32;
+    let s = fmt!("123" [xyz!()] "abc" {a;h} "123" (I;b) "abc");
+    let s0 = ToString::to_string(s);
+
+    let a = 12.1234_f32;
+    const F: f32 = 12.1234;
+    let s = fmt!("999" [xyz!()] "abc" {a;.3} "abc" (F;.2) "abc");
+    let s0 = ToString::to_string(s);
+    assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
-    let s = fmt!("123" [xyz!()] "abc" (&A) "abc" {d:456});
+    let s = fmt!("123" [xyz!()] "abc" (&I) "abc" {d:456});
     let s0 = ToString::to_string(s);
 
     let s = fmt!("123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
