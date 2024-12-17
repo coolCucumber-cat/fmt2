@@ -29,176 +29,129 @@ macro_rules! fmt_internal_trait_from_args {
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! fmt_internal_fmt_args {
-	{
-		value: $value:tt,
-		fmt_args: {type $ty:path},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$ty] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableInternal] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {?},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableDebugInternal] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {b},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableBinaryInternal] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {h},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableHexadecimalInternal] }, },
-			args: $args
-		}
-	};
-}
-
-#[doc(hidden)]
-#[macro_export]
 macro_rules! fmt_internal {
 	// literals
 	{
-		input: { $input:literal, $($inputs:tt, )* },
+		input: { $literal:literal, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* literal { [$input,] }, },
+			output: { $($outputs)* literal [$literal,], },
 			args: $args
 		}
 	};
 	{
-		input: { ($input:literal $(;)?), $($inputs:tt, )* },
+		input: { ($literal:literal $(;)?), $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* literal { [$input,] }, },
+			output: { $($outputs)* literal [$literal,], },
 			args: $args
 		}
 	};
 	{
-		input: { { $input_field_name:ident : $input:literal $(;)? }, $($inputs:tt, )* },
+		input: { { $field_name:ident : $literal:literal $(;)? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* literal { [$input,] }, },
+			output: { $($outputs)* literal [$literal,], },
 			args: $args
 		}
 	};
 
 	// expressions that are literals after macro expansion (can be concatenated with `concat!()`)
 	{
-		input: { [$($input:expr)*], $($inputs:tt, )* },
+		input: { [$($literal:expr)*], $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* literal { [$($input, )*] }, },
+			output: { $($outputs)* literal [$($literal, )*], },
 			args: $args
 		}
 	};
 
 	// expressions that don't capture any external variables (consts, statics, fn call)
 	{
-		input: { ($input:expr $(; $($fmt_args:tt)*)?), $($inputs:tt, )* },
+		input: { ($value:expr $(; $($fmt_args:tt)*)?), $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::fmt_internal_fmt_args! {
-			value: ($input),
-			fmt_args: { $($($fmt_args)*)? },
+		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* },
+			output: { $($outputs)* expr ($value; $($fmt_args)*), },
 			args: $args
 		}
 	};
 
 	// expressions
 	{
-		input: { { $input_field_name:ident : $input_value:expr $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal_fmt_args! {
-			value: { $input_field_name : $input_value },
-			fmt_args: { $($($fmt_args)*)? },
-			input: { $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-
-	{
-		input: { { $input_field_name:ident $($input_ty:ty)? : $input_value:expr $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal_fmt_args! {
-			value: { $input_field_name $($input_ty)? : $input_value },
-			fmt_args: { $($($fmt_args)*)? },
-			input: { $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// same as above but automatic name using variable as name and value
-	{
-		input: { { $input_field_name:ident $($input_ty:ty)? $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		input: { { $field_name:ident : $value:expr $(;)? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { { $input_field_name $($input_ty)? : $input_field_name; $($($fmt_args)*)? }, $($inputs, )* },
+			input: { $($inputs, )* },
+			output: { $($outputs)*
+				expr { $field_name : $value; trait $crate::writable::WritableInternal },
+			},
+			args: $args
+		}
+	};
+	{
+		input: { { $field_name:ident : $value:expr; ? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)*
+				expr { $field_name : $value; trait $crate::writable::WritableDebugInternal },
+			},
+			args: $args
+		}
+	};
+	{
+		input: { { $field_name:ident : $value:expr; b }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)*
+				expr { $field_name : $value; trait $crate::writable::WritableBinaryInternal },
+			},
+			args: $args
+		}
+	};
+	{
+		input: { { $field_name:ident : $value:expr; h }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)*
+				expr { $field_name : $value; trait $crate::writable::WritableHexadecimalInternal },
+			},
+			args: $args
+		}
+	};
+	// automatic name using variable as name and value
+	{
+		input: { { $field_name:ident $($input_ty:ty)? $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { { $field_name $($input_ty)? : $field_name; $($($fmt_args)*)? }, $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -248,7 +201,7 @@ macro_rules! fmt_internal_2 {
 
 	// literals
 	{
-		input: { $(literal { [$($input:expr, )*] }, )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
+		input: { $(literal [$($input:expr, )*], )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
@@ -259,7 +212,7 @@ macro_rules! fmt_internal_2 {
 		}
 	};
 	{
-		input: { $(literal { [$("", )*] }, )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
+		input: { $(literal [$("", )*] , )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
@@ -272,26 +225,26 @@ macro_rules! fmt_internal_2 {
 
 	// expressions that don't capture any external variables (consts, statics, fn call)
 	{
-		input: { expr { ($input_value:expr) $input_fmt_args:tt }, $($inputs:tt)* },
+		input: { expr { ($value:expr) $input_fmt_args:tt }, $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal_2! {
 			input: { $($inputs)* },
-			output: { $($outputs)* internal ($input_value; $input_fmt_args), },
+			output: { $($outputs)* internal ($value; $input_fmt_args), },
 			args: $args
 		}
 	};
 
 	// expressions
 	{
-		input: { expr { { $input_field_name:ident : $input_value:expr } $input_fmt_args:tt }, $($inputs:tt)* },
+		input: { expr { { $field_name:ident : $value:expr } $input_fmt_args:tt }, $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal_2! {
 			input: { $($inputs)* },
-			output: { $($outputs)* external { $input_field_name : $input_value; $input_fmt_args }, },
+			output: { $($outputs)* external { $field_name : $value; $input_fmt_args }, },
 			args: $args
 		}
 	};
