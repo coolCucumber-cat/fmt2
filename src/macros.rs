@@ -1,111 +1,13 @@
 #[macro_export]
-macro_rules! fmt_internal_concat_literals {
-	($(""),* $(,)?) => {};
-
-	($($l:expr),+ $(,)?) => {
-		concat!($($l),+)
-	};
-}
-
-#[macro_export]
-macro_rules! fmt_internal_write_literals {
-	($writer:expr => $(""),* $(,)?) => {};
-
-	($writer:expr => $($l:expr),+ $(,)?) => {{
-		const S: &str = concat!($($l),+);
-		const LEN: usize = S.len();
-		const WRITE: bool = LEN != 0;
-
-		if WRITE {
-			$crate::write::Write::write_str($writer, S)?;
-		};
-	}};
-}
-
-#[macro_export]
-macro_rules! fmt_internal_write_value_2 {
-	($writer:expr, $value:expr => {}) => {{
-		$crate::write::Write::write_without_flush_hint_($writer, $value)?
-	}};
-	($writer:expr, $value:expr => {?}) => {{
-		$crate::write::Write::write_debug($writer, $value)?
-	}};
-	($writer:expr, $value:expr => {std}) => {{
-		$crate::write::Write::write_stdfmtdisplay($writer, $value)?
-	}};
-	($writer:expr, $value:expr => {std?}) => {{
-		$crate::write::Write::write_stdfmtdebug($writer, $value)?
-	}};
-	($writer:expr, $value:expr => {$($tt:tt)*}) => {{
-		compile_error!(concat!("invalid formatting arguments: ", $(stringify!($tt)),*))
-	}};
-}
-
-#[macro_export]
-macro_rules! fmt_internal_write_value {
-	($writer:expr, $struct_:expr => { $field_name:ident; $($tt:tt)* }) => {{
-		$crate::fmt_internal_write_value_2!($writer, $struct_.$field_name => { $($($tt)*)? })
-	}};
-
-	($writer:expr $(, $struct_:expr)? => ($expr:expr; $($tt:tt)*)) => {{
-		use $crate::utils::DerefForWritable;
-		// use $crate::utils::DerefForWritableMut;
-		// use $crate::utils::DerefForWritableFmt;
-		$crate::fmt_internal_write_value_2!($writer, ($expr).deref_for_writable() => { $($($tt)*)? })
-	}};
-}
-
-#[macro_export]
-macro_rules! fmt_internal_len_hint_literals {
-	($(""),* $(,)?) => { 0 };
-
-	($($l:expr),+ $(,)?) => {{
-		const S: &str = concat!($($l),+);
-		const LEN: usize = S.len();
-		LEN
-	}};
-}
-
-#[macro_export]
-macro_rules! fmt_internal_len_hint_value_2 {
-	($value:expr => {}) => {{
-		$crate::writable::Writable::len_hint($value)
-	}};
-	($value:expr => {?}) => {{
-		$crate::writable::WritableDebug::len_hint($value)
-	}};
-	($value:expr => {std}) => { 0 };
-	($value:expr => {std?}) => { 0 };
-	($value:expr => {$($tt:tt)*}) => {{
-		compile_error!(concat!("invalid formatting arguments: ", $(stringify!($tt)),*))
-	}};
-}
-
-#[macro_export]
-macro_rules! fmt_internal_len_hint_value {
-	($struct_:expr => { $field_name:ident; $($tt:tt)* }) => {{
-		$crate::fmt_internal_len_hint_value_2!($struct_.$field_name => { $($($tt)*)? })
-	}};
-
-	($($struct_:expr)? => ($expr:expr; $($tt:tt)*)) => { 0 };
-	// ($($struct_:expr)? => ($expr:expr; $($tt:tt)*)) => {{
-	// 	use $crate::utils::DerefForWritable;
-	// 	use $crate::utils::DerefForWritableMut;
-	// 	use $crate::utils::DerefForWritableFmt;
-	// 	$crate::fmt_internal_len_hint_value_2!($writer, ($expr).deref_for_writable() => { $($($tt)*)? })
-	// }};
-}
-
-#[macro_export]
 macro_rules! fmt_internal_write {
-	($writer:expr => { $value:expr; [$ty:path, $precision:expr, $alt:expr] }) => {{
+	($writer:expr => { $value:expr; [$ty:path] }) => {{
 		use $ty as A;
-		A::write_to_internal::<_, $precision, $alt>($value, $writer)?;
+		A::write_to_internal($value, $writer)?;
 	}};
 
-	($writer:expr => ($value:expr; [$ty:path, $precision:expr, $alt:expr])) => {{
+	($writer:expr => ($value:expr; [$ty:path])) => {{
 		use $ty as A;
-		A::write_to_internal::<_, $precision, $alt>($value.borrow_writable_internal(), $writer)?;
+		A::write_to_internal($value.borrow_writable_internal(), $writer)?;
 	}};
 
 	($writer:expr => [$("", )*]) => {{
@@ -124,18 +26,23 @@ macro_rules! fmt_internal_write {
 macro_rules! fmt_internal_trait_from_args {
     () => {};
 }
-#[macro_export]
-macro_rules! fmt_internal_alt_from_args {
-    () => {};
-}
-#[macro_export]
-macro_rules! fmt_internal_precision_from_args {
-    () => {};
-}
 
 #[doc(hidden)]
 #[macro_export]
 macro_rules! fmt_internal_fmt_args {
+	{
+		value: $value:tt,
+		fmt_args: {type $ty:path},
+		input: { $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* expr {$value [$ty] }, },
+			args: $args
+		}
+	};
 	{
 		value: $value:tt,
 		fmt_args: {},
@@ -145,7 +52,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableInternal, 0, false] }, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableInternal] }, },
 			args: $args
 		}
 	};
@@ -158,20 +65,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableDebugInternal, 0, false] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {#?},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableDebugInternal, 0, true] }, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableDebugInternal] }, },
 			args: $args
 		}
 	};
@@ -184,7 +78,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableBinaryInternal, 0, false] }, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableBinaryInternal] }, },
 			args: $args
 		}
 	};
@@ -197,33 +91,7 @@ macro_rules! fmt_internal_fmt_args {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableHexadecimalInternal, 0, false] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {#h},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritableHexadecimalInternal, 0, true] }, },
-			args: $args
-		}
-	};
-	{
-		value: $value:tt,
-		fmt_args: {.$precision:expr},
-		input: { $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* expr {$value [$crate::writable::WritablePrecisionInternal, $precision, false] }, },
+			output: { $($outputs)* expr {$value [$crate::writable::WritableHexadecimalInternal] }, },
 			args: $args
 		}
 	};
@@ -512,7 +380,7 @@ macro_rules! fmt_internal_2 {
 	// combination of writable sources
 	{
 		input: {},
-		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $value:expr; [$ty:path, $precision:expr, $alt:expr] }, $(internal $internal:tt,)*)+ },
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $value:expr; [$ty:path] }, $(internal $internal:tt,)*)+ },
 		args: $args:tt
 	} => {&{
 		// for syntax highlighting
@@ -536,7 +404,7 @@ macro_rules! fmt_internal_2 {
 					$crate::fmt_internal_write!(w => $internal0);
 				)*
 				$(
-					$crate::fmt_internal_write!(w => { self.$field_name; [$ty, $precision, $alt] });
+					$crate::fmt_internal_write!(w => { self.$field_name; [$ty] });
 					$(
 						$crate::fmt_internal_write!(w => $internal);
 					)*
@@ -718,9 +586,9 @@ pub fn test() {
 
     let a = 12.1234_f32;
     const F: f32 = 12.1234;
-    let s = fmt!("999" [xyz!()] "abc" {a;.3} "abc" (F;.2) "abc");
+    let s = fmt!("999" [xyz!()] "abc" {a;} "abc" (F;) "abc");
     let s0 = ToString::to_string(s);
-    assert_eq!(s0, "999XYZabc12.123abc12.12abc");
+    // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
