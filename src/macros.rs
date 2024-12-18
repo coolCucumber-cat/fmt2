@@ -1,17 +1,36 @@
 #[macro_export]
-macro_rules! fmt_internal_write {
-	($writer:expr => { $value:expr; [$ty:path] }) => {{
-		use $ty as A;
-		A::write_to_internal($value, $writer)?;
-	}};
+macro_rules! noop {
+    ($($tt:tt)*) => {};
+}
 
-	($writer:expr => ($value:expr; [$ty:path])) => {{
-		use $ty as A;
-		A::write_to_internal($value.borrow_writable_internal(), $writer)?;
+#[macro_export]
+macro_rules! use_internal_writable_trait_from_fmt_args {
+    (use { trait $tr:path } as $name:ident;) => {
+        use $tr as $name;
+    };
+    (use {} as $name:ident;) => {
+        use $crate::writable::WritableInternal as $name;
+    };
+    (use { ? } as $name:ident;) => {
+        use $crate::writable::WritableDebugInternal as $name;
+    };
+    (use { b } as $name:ident;) => {
+        use $crate::writable::WritableBinaryInternal as $name;
+    };
+    (use { h } as $name:ident;) => {
+        use $crate::writable::WritableHexadecimalInternal as $name;
+    };
+}
+
+#[macro_export]
+macro_rules! write_fmt_single_internal {
+	($writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
+		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as A;);
+		($value).write_to_internal($writer)?;
 	}};
 
 	($writer:expr => [$("", )*]) => {{
-		compile_error!("unreachable. impossible to be empty");
+		compile_error!("unreachable. dev error or bug using macro");
 	}};
 
 	($writer:expr => [$($value:expr, )+]) => {{
@@ -23,14 +42,26 @@ macro_rules! fmt_internal_write {
 }
 
 #[macro_export]
-macro_rules! fmt_internal_trait_from_args {
-    () => {};
+macro_rules! len_hint_fmt_single_internal {
+	({ $value:expr; $($fmt_args:tt)* }) => {{
+		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as A;);
+		($value).len_hint_internal()
+	}};
+
+	([$("", )*]) => {{
+		compile_error!("unreachable. dev error or bug using macro");
+	}};
+
+	([$($value:expr, )+]) => {{
+		const S: &str = ::core::concat!($($value),+);
+		S.len()
+	}};
 }
 
 #[doc(hidden)]
 #[macro_export]
 macro_rules! fmt_internal {
-	// literals
+	// literal
 	{
 		input: { $literal:literal, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
@@ -42,6 +73,7 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
+	// literal in a non-capturing expression (make it literal)
 	{
 		input: { ($literal:literal $(;)?), $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
@@ -53,8 +85,9 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
+	// literal in a capturing expression (make it literal)
 	{
-		input: { { $field_name:ident : $literal:literal $(;)? }, $($inputs:tt, )* },
+		input: { { $field_name:ident = $literal:literal $(;)? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
@@ -64,7 +97,6 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
-
 	// expressions that are literals after macro expansion (can be concatenated with `concat!()`)
 	{
 		input: { [$($literal:expr)*], $($inputs:tt, )* },
@@ -77,8 +109,7 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
-
-	// expressions that don't capture any external variables (consts, statics, fn call)
+	// non-capturing expression
 	{
 		input: { ($value:expr $(; $($fmt_args:tt)*)?), $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
@@ -86,72 +117,83 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
-			output: { $($outputs)* expr ($value; $($fmt_args)*), },
+			output: { $($outputs)* expr ($value; $($($fmt_args)*)?), },
 			args: $args
 		}
 	};
-
-	// expressions
+	// capturing expression
 	{
-		input: { { $field_name:ident : $value:expr $(;)? }, $($inputs:tt, )* },
+		input: { { $field_name:ident $(: $ty:ty)? = $value:expr $(;)? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)*
-				expr { $field_name : $value; trait $crate::writable::WritableInternal },
+				expr { $field_name $(: $ty)? = $value; trait $crate::writable::WritableInternal },
 			},
 			args: $args
 		}
 	};
 	{
-		input: { { $field_name:ident : $value:expr; ? }, $($inputs:tt, )* },
+		input: { { $field_name:ident $(: $ty:ty)? = $value:expr; ? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)*
-				expr { $field_name : $value; trait $crate::writable::WritableDebugInternal },
+				expr { $field_name $(: $ty)? = $value; trait $crate::writable::WritableDebugInternal },
 			},
 			args: $args
 		}
 	};
 	{
-		input: { { $field_name:ident : $value:expr; b }, $($inputs:tt, )* },
+		input: { { $field_name:ident $(: $ty:ty)? = $value:expr; b }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)*
-				expr { $field_name : $value; trait $crate::writable::WritableBinaryInternal },
+				expr { $field_name $(: $ty)? = $value; trait $crate::writable::WritableBinaryInternal },
 			},
 			args: $args
 		}
 	};
 	{
-		input: { { $field_name:ident : $value:expr; h }, $($inputs:tt, )* },
+		input: { { $field_name:ident $(: $ty:ty)? = $value:expr; h }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)*
-				expr { $field_name : $value; trait $crate::writable::WritableHexadecimalInternal },
+				expr { $field_name $(: $ty)? = $value; trait $crate::writable::WritableHexadecimalInternal },
 			},
 			args: $args
 		}
 	};
-	// automatic name using variable as name and value
+	// capturing expression using variable as name and as value
 	{
-		input: { { $field_name:ident $($input_ty:ty)? $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		input: { { $field_name:ident $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { { $field_name $($input_ty)? : $field_name; $($($fmt_args)*)? }, $($inputs, )* },
+			input: { { $field_name = $field_name; $($($fmt_args)*)? }, $($inputs, )* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// capturing expression with concrete type using variable as name and as value
+	{
+		input: { { $field_name:ident : $ty:ty $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { { $field_name : $ty = $field_name; $($($fmt_args)*)? }, $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -199,7 +241,7 @@ macro_rules! fmt_internal {
 macro_rules! fmt_internal_2 {
 	// recursion
 
-	// literals
+	// literals (make multiple groups into one group)
 	{
 		input: { $(literal [$($input:expr, )*], )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
 		output: { $($outputs:tt)* },
@@ -211,6 +253,7 @@ macro_rules! fmt_internal_2 {
 			args: $args
 		}
 	};
+	// empty literals (ignore)
 	{
 		input: { $(literal [$("", )*] , )+ $(expr $inputs_a:tt, $($inputs_b:tt $inputs_c:tt,)*)? },
 		output: { $($outputs:tt)* },
@@ -223,43 +266,64 @@ macro_rules! fmt_internal_2 {
 		}
 	};
 
-	// expressions that don't capture any external variables (consts, statics, fn call)
+	// non-capturing expression
 	{
-		input: { expr { ($value:expr) $input_fmt_args:tt }, $($inputs:tt)* },
+		input: { expr ($value:expr; $($fmt_args:tt)*), $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal_2! {
 			input: { $($inputs)* },
-			output: { $($outputs)* internal ($value; $input_fmt_args), },
+			output: { $($outputs)* internal { $value; $($fmt_args)* }, },
 			args: $args
 		}
 	};
 
-	// expressions
+	// capturing expression
 	{
-		input: { expr { { $field_name:ident : $value:expr } $input_fmt_args:tt }, $($inputs:tt)* },
+		input: { expr { $field_name:ident = $value:expr; trait $tr:ty }, $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal_2! {
 			input: { $($inputs)* },
-			output: { $($outputs)* external { $field_name : $value; $input_fmt_args }, },
+			output: { $($outputs)* external { $field_name : generic $field_name : $value; trait $tr }, },
+			args: $args
+		}
+	};
+	// capturing expression with concrete type
+	{
+		input: { expr { $field_name:ident : $ty:ty = $value:expr; trait $tr:ty }, $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal_2! {
+			input: { $($inputs)* },
+			output: { $($outputs)* external { $field_name : ty $ty : $value; trait $tr }, },
 			args: $args
 		}
 	};
 
 	// terminate recursion
 
-	// only literals
+	// nothing (empty string)
 	{
 		input: {},
-		output: { $(internal [$("", )*], )? },
+		output: {},
 		args: $args:tt
 	} => {
 		""
 	};
-	// only literals
+	// error
+	{
+		input: {},
+		output: { $(internal [$("", )*], )? },
+		args: $args:tt
+	} => {{
+		compile_error!("unreachable. dev error in macro");
+	}};
+
+	// only literals (concat)
 	{
 		input: {},
 		output: { internal [$($literals:expr, )*], },
@@ -269,32 +333,37 @@ macro_rules! fmt_internal_2 {
 	};
 
 
-	// only one expression that don't capture any external variables
-// 	{
-// 		input: {},
-// 		output: { $(,[$("")*])* ;($output:expr $(;)?) $(,[$("")*])* },
-// 		args: $args:tt
-// 	} => {{
-// 		use $crate::writable::WritableInternal;
-//
-// 		($output).borrow_writable()
-// 	}};
-
-	// only one expression
-// 	{
-// 		input: {},
-// 		output: { $(,[$("")*])* ;{ $output:ident $(;)? } $(,[$("")*])* },
-// 		output_fields: { { $output_field_name:ident : $output_field_value:expr } }
-// 	} => {{
-// 		use $crate::writable::WritableInternal;
-//
-// 		($output_field_value).borrow_writable()
-// 	}};
-
-	// combination of writable sources, no captures
+	// only one non-capturing, writable expression (no wrapper struct, since it's only one and already writable)
 	{
 		input: {},
-		output: { $(internal $internal:tt,)* },
+		output: { internal { $value:expr; } },
+		args: $args:tt
+	} => {{
+		use $crate::writable::WritableInternal as A;
+		($value).borrow_writable_internal()
+	}};
+	// only one capturing, writable expression (no wrapper struct, since it's only one and already writable)
+	{
+		input: {},
+		output: { external { $field_name:ident = $value:expr; } },
+		args: $args:tt
+	} => {{
+		use $crate::writable::WritableInternal as A;
+		($value).borrow_writable_internal()
+	}};
+	// only one capturing, writable expression (no wrapper struct, since it's only one and already writable. no borrow it's a concrete type)
+	{
+		input: {},
+		output: { external { $field_name:ident : $ty:ty = $value:expr; } },
+		args: $args:tt
+	} => {
+		$value
+	};
+
+	// at least one non-capturing expression, no capturing expressions, any amount of literals (but not one non-capturing, writable expression because it's already covered)
+	{
+		input: {},
+		output: { $(internal $internal:tt,)+ },
 		args: $args:tt
 	} => {&{
 		struct W;
@@ -305,8 +374,8 @@ macro_rules! fmt_internal_2 {
 				where
 					W: $crate::write::Write + ?Sized {
 				$(
-					$crate::fmt_internal_write!(w => $internal);
-				)*
+					$crate::write_fmt_single_internal!(w => $internal);
+				)+
 
 				::core::result::Result::Ok(())
 			}
@@ -314,27 +383,23 @@ macro_rules! fmt_internal_2 {
 			#[inline]
 			fn len_hint(&self) -> usize {
 				0
-				// const CONST_LEN: usize = $crate::fmt_internal_len_hint_literals!(
-				// 	$($($output_literals_start,)*)*
-				// 	$(
-				// 		$($($output_literals,)*)*
-				// 	)+
-				// );
-				// CONST_LEN $(
-				// 	+ $crate::fmt_internal_len_hint_value!(self => $output_values)
-				// )+
+				$(
+					+ $crate::len_hint_fmt_single_internal!($internal)
+				)+
 			}
 		}
 
 		W
 	}};
 
-
-	// combination of writable sources
+	// combination of sources (excluding ones that are already covered above) and where the capturing values all have concrete types
 	{
 		input: {},
-		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $value:expr; [$ty:path] }, $(internal $internal:tt,)*)+ },
-		args: $args:tt
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : ty $ty:ty : $value:expr; trait $tr:path }, $(internal $internal:tt,)*)+ },
+		args: {
+			lifetime: $lifetime:lifetime,
+			optional_lifetime: $($optional_lifetime:lifetime)?,
+		}
 	} => {&{
 		// for syntax highlighting
 		#[allow(unused)]
@@ -343,23 +408,23 @@ macro_rules! fmt_internal_2 {
 		}
 
 		#[allow(non_camel_case_types)]
-		struct W<'a, $($field_name : $ty + ?Sized),+> {
-			$($field_name : &'a $field_name),+
+		struct W$(<$optional_lifetime>)? {
+			$($field_name : $ty ),+
 		}
 
 		#[allow(non_camel_case_types)]
-		impl<'a, $($field_name : $ty + ?Sized),+> $crate::writable::Writable for W<'a, $($field_name),+> {
+		impl$(<$optional_lifetime>)? $crate::writable::Writable for W$(<$optional_lifetime>)? {
 			#[inline]
 			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 				where
 					W: $crate::write::Write + ?Sized {
 				$(
-					$crate::fmt_internal_write!(w => $internal0);
+					$crate::write_fmt_single_internal!(w => $internal0);
 				)*
 				$(
-					$crate::fmt_internal_write!(w => { self.$field_name; [$ty] });
+					$crate::write_fmt_single_internal!(w => { self.$field_name; trait $tr });
 					$(
-						$crate::fmt_internal_write!(w => $internal);
+						$crate::write_fmt_single_internal!(w => $internal);
 					)*
 				)+
 
@@ -369,28 +434,88 @@ macro_rules! fmt_internal_2 {
 			#[inline]
 			fn len_hint(&self) -> usize {
 				0
-				// const CONST_LEN: usize = $crate::fmt_internal_len_hint_literals!(
-				// 	$($($output_literals_start,)*)*
-				// 	$(
-				// 		$($($output_literals,)*)*
-				// 	)+
-				// );
-				// CONST_LEN $(
-				// 	+ $crate::fmt_internal_len_hint_value!(self => $output_values)
-				// )+
+				$(
+					+ $crate::len_hint_fmt_single_internal!($internal0)
+				)*
+				$(
+					+ $crate::len_hint_fmt_single_internal!({ self.$field_name; trait $tr })
+					$(
+						+ $crate::len_hint_fmt_single_internal!($internal)
+					)*
+				)+
 			}
 		}
 
-		// W {
-		// 	$($field_name : {
-		// 		<_ as $ty>::borrow_writable_internal(($value).borrow())
-		// 	}),*
-		// }
 		W {
-			$($field_name : {
-				use $ty;
-				($value).borrow_writable_internal()
-			}),*
+			$($field_name : $value),*
+		}
+	}};
+	// combination of sources (excluding ones that are already covered above)
+	{
+		input: {},
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $(generic $generic:ident)? $(ty $ty:ty)? : $value:expr; trait $tr:path }, $(internal $internal:tt,)*)+ },
+		args: {
+			lifetime: $lifetime:lifetime,
+			optional_lifetime: $($optional_lifetime:lifetime)?,
+		}
+	} => {&{
+		// for syntax highlighting
+		#[allow(unused)]
+		{
+			$(let $field_name: u8;)*
+		}
+
+		#[allow(non_camel_case_types)]
+		struct W<$lifetime, $($($generic : $tr + ?Sized, )?)+> {
+			$($field_name : $(&$lifetime $generic)? $($ty)? ),+
+		}
+
+		#[allow(non_camel_case_types)]
+		impl<$lifetime, $($($generic : $tr + ?Sized, )?)+> $crate::writable::Writable for W<$lifetime, $($($generic, )?)+> {
+			#[inline]
+			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				where
+					W: $crate::write::Write + ?Sized {
+				$(
+					$crate::write_fmt_single_internal!(w => $internal0);
+				)*
+				$(
+					$crate::write_fmt_single_internal!(w => { self.$field_name; trait $tr });
+					$(
+						$crate::write_fmt_single_internal!(w => $internal);
+					)*
+				)+
+
+				::core::result::Result::Ok(())
+			}
+
+			#[inline]
+			fn len_hint(&self) -> usize {
+				0
+				$(
+					+ $crate::len_hint_fmt_single_internal!($internal0)
+				)*
+				$(
+					+ $crate::len_hint_fmt_single_internal!({ self.$field_name; trait $tr })
+					$(
+						+ $crate::len_hint_fmt_single_internal!($internal)
+					)*
+				)+
+			}
+		}
+
+		W {
+			$($field_name :
+				$({
+					$crate::noop!($generic);
+					use $tr as A;
+					($value).borrow_writable_internal()
+				})?
+				$({
+					$crate::noop!($ty);
+					$value
+				})?
+			),*
 		}
 	}};
 }
@@ -401,6 +526,361 @@ macro_rules! fmt {
 		$crate::fmt_internal! {
 			input: { $($tt, )+ },
 			output: {},
+			args: {
+				lifetime: 'a,
+				optional_lifetime:,
+			}
+		}
+	};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! write_fmt_internal {
+	// literal
+	{
+		input: { $literal:literal, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::write_fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* [$literal,], },
+			args: $args
+		}
+	};
+	// literal in an expression (make it literal)
+	{
+		input: { { $literal:literal $(;)? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::write_fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* [$literal,], },
+			args: $args
+		}
+	};
+	// expressions that are literals after macro expansion (can be concatenated with `concat!()`)
+	{
+		input: { [$($literal:expr)*], $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::write_fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)* [$($literal, )*], },
+			args: $args
+		}
+	};
+	// expression
+	{
+		input: { { $value:expr $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::write_fmt_internal! {
+			input: { $($inputs, )* },
+			output: { $($outputs)*
+				{ $value; $($($fmt_args)*)? },
+			},
+			args: $args
+		}
+	};
+
+	// error (macros must be in square brackets)
+	{
+		input: { $name:ident!$tt:tt, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {{
+		compile_error!(concat!(
+			"macros must be in [square brackets]\n",
+			stringify!($name), "!", stringify!($tt),
+		));
+	}};
+	// error
+	{
+		input: { $tt:tt, $($inputs:tt, )* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {{
+		compile_error!(concat!(
+			"expressions must be either valid literals or in {curly} or [square] brackets\n",
+			"see documentation for the `fmt` macro\n",
+			stringify!($tt),
+		));
+	}};
+
+	{
+		input: {},
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::write_fmt_internal_2! {
+			input: { $($outputs)+ },
+			output: {},
+			args: $args
+		}
+	};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! write_fmt_internal_2 {
+	// recursion
+
+	// literals (make multiple groups into one group)
+	{
+		input: { $([$($input:expr, )*], )+ $({ $inputs_a:expr; $($inputs_b:tt)* }, $($inputs_c:tt,)*)? },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal_2! {
+			input: { $({ $inputs_a; $($inputs_b:tt)* }, $($inputs_c,)*)? },
+			output: { $($outputs)* [$($($input, )*)+], },
+			args: $args
+		}
+	};
+	// empty literals (ignore)
+	{
+		input: { $([$("", )*], )+ $({ $inputs_a:expr; $($inputs_b:tt)* }, $($inputs_c:tt,)*)? },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal_2! {
+			input: { $({ $inputs_a; $($inputs_b:tt)* }, $($inputs_c,)*)? },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+
+	// expression
+	{
+		input: { { $value:expr; $($fmt_args:tt)* }, $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal_2! {
+			input: { $($inputs)* },
+			output: { $($outputs)* { $value; $($fmt_args)* }, },
+			args: $args
+		}
+	};
+
+	// terminate recursion
+
+	// only empty literals (empty string)
+	{
+		input: {},
+		output: { $(internal [$("", )*], )? },
+		args: $args:tt
+	} => {
+		""
+	};
+	// only literals (concat)
+	{
+		input: {},
+		output: { internal [$($literals:expr, )*], },
+		args: $args:tt
+	} => {
+		::core::concat!($($literals),*)
+	};
+
+
+	// only one non-capturing, writable expression (no wrapper struct, since it's only one and already writable)
+	{
+		input: {},
+		output: { internal { $value:expr; } },
+		args: $args:tt
+	} => {{
+		use $crate::writable::WritableInternal as A;
+		($value).borrow_writable_internal()
+	}};
+	// only one capturing, writable expression (no wrapper struct, since it's only one and already writable)
+	{
+		input: {},
+		output: { external { $field_name:ident = $value:expr; } },
+		args: $args:tt
+	} => {{
+		use $crate::writable::WritableInternal as A;
+		($value).borrow_writable_internal()
+	}};
+	// only one capturing, writable expression (no wrapper struct, since it's only one and already writable. no borrow it's a concrete type)
+	{
+		input: {},
+		output: { external { $field_name:ident : $ty:ty = $value:expr; } },
+		args: $args:tt
+	} => {
+		$value
+	};
+
+	// at least one non-capturing expression, no capturing expressions, any amount of literals (but not one non-capturing, writable expression because it's already covered)
+	{
+		input: {},
+		output: { $(internal $internal:tt,)+ },
+		args: $args:tt
+	} => {&{
+		struct W;
+
+		impl $crate::writable::Writable for W {
+			#[inline]
+			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				where
+					W: $crate::write::Write + ?Sized {
+				$(
+					$crate::write_fmt_single_internal!(w => $internal);
+				)+
+
+				::core::result::Result::Ok(())
+			}
+
+			#[inline]
+			fn len_hint(&self) -> usize {
+				0
+				$(
+					+ $crate::len_hint_fmt_single_internal!($internal)
+				)+
+			}
+		}
+
+		W
+	}};
+
+	// combination of sources (excluding ones that are already covered above) and where the capturing values all have concrete types
+	{
+		input: {},
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : ty $ty:ty : $value:expr; trait $tr:path }, $(internal $internal:tt,)*)+ },
+		args: {
+			lifetime: $lifetime:lifetime,
+			optional_lifetime: $($optional_lifetime:lifetime)?,
+		}
+	} => {&{
+		// for syntax highlighting
+		#[allow(unused)]
+		{
+			$(let $field_name: u8;)*
+		}
+
+		#[allow(non_camel_case_types)]
+		struct W$(<$optional_lifetime>)? {
+			$($field_name : $ty ),+
+		}
+
+		#[allow(non_camel_case_types)]
+		impl$(<$optional_lifetime>)? $crate::writable::Writable for W$(<$optional_lifetime>)? {
+			#[inline]
+			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				where
+					W: $crate::write::Write + ?Sized {
+				$(
+					$crate::write_fmt_single_internal!(w => $internal0);
+				)*
+				$(
+					$crate::write_fmt_single_internal!(w => { self.$field_name; trait $tr });
+					$(
+						$crate::write_fmt_single_internal!(w => $internal);
+					)*
+				)+
+
+				::core::result::Result::Ok(())
+			}
+
+			#[inline]
+			fn len_hint(&self) -> usize {
+				0
+				$(
+					+ $crate::len_hint_fmt_single_internal!($internal0)
+				)*
+				$(
+					+ $crate::len_hint_fmt_single_internal!({ self.$field_name; trait $tr })
+					$(
+						+ $crate::len_hint_fmt_single_internal!($internal)
+					)*
+				)+
+			}
+		}
+
+		W {
+			$($field_name : $value),*
+		}
+	}};
+	// combination of sources (excluding ones that are already covered above)
+	{
+		input: {},
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident : $(generic $generic:ident)? $(ty $ty:ty)? : $value:expr; trait $tr:path }, $(internal $internal:tt,)*)+ },
+		args: {
+			lifetime: $lifetime:lifetime,
+			optional_lifetime: $($optional_lifetime:lifetime)?,
+		}
+	} => {&{
+		// for syntax highlighting
+		#[allow(unused)]
+		{
+			$(let $field_name: u8;)*
+		}
+
+		#[allow(non_camel_case_types)]
+		struct W<$lifetime, $($($generic : $tr + ?Sized, )?)+> {
+			$($field_name : $(&$lifetime $generic)? $($ty)? ),+
+		}
+
+		#[allow(non_camel_case_types)]
+		impl<$lifetime, $($($generic : $tr + ?Sized, )?)+> $crate::writable::Writable for W<$lifetime, $($($generic, )?)+> {
+			#[inline]
+			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				where
+					W: $crate::write::Write + ?Sized {
+				$(
+					$crate::write_fmt_single_internal!(w => $internal0);
+				)*
+				$(
+					$crate::write_fmt_single_internal!(w => { self.$field_name; trait $tr });
+					$(
+						$crate::write_fmt_single_internal!(w => $internal);
+					)*
+				)+
+
+				::core::result::Result::Ok(())
+			}
+
+			#[inline]
+			fn len_hint(&self) -> usize {
+				0
+				$(
+					+ $crate::len_hint_fmt_single_internal!($internal0)
+				)*
+				$(
+					+ $crate::len_hint_fmt_single_internal!({ self.$field_name; trait $tr })
+					$(
+						+ $crate::len_hint_fmt_single_internal!($internal)
+					)*
+				)+
+			}
+		}
+
+		W {
+			$($field_name :
+				$({
+					$crate::noop!($generic);
+					use $tr as A;
+					($value).borrow_writable_internal()
+				})?
+				$({
+					$crate::noop!($ty);
+					$value
+				})?
+			),*
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! write_fmt {
+	($($tt:tt)+) => {
+		$crate::write_fmt_internal! {
+			input: { $($tt, )+ },
+			output: {},
 			args: {}
 		}
 	};
@@ -408,23 +888,39 @@ macro_rules! fmt {
 
 #[macro_export]
 macro_rules! fmt_struct {
-	($value:expr => $name:ident { $($field:ident),* }) => {
-		$crate::fmt!([stringify!($name)] " { " $(", " [stringify!($field)] ": " {$field:$value.$field})* "}")
+	($value:expr => $name:ident { $field0:ident $([$($tt0:tt)*])? $(, $field:ident $([$($tt:tt)*])?)* $(,)? }) => {
+		$crate::fmt!([stringify!($name)] " { " [stringify!($field0)] ": " {$field0 = $value.$field0;$($($tt0)*)?} $(", " [stringify!($field)] ": " {$field = $value.$field;$($($tt)*)?})* " }")
+	};
+
+	($name:ident; { $field0:ident : $tt0:tt $(, $field:ident : $tt:tt)* $(,)? }) => {
+		$crate::fmt!([stringify!($name)] " { " [stringify!($field0)] ": " $tt0 $(", " [stringify!($field)] ": " $tt)* " }")
+	};
+
+	($value:expr => $name:ident {}) => {
+		$crate::fmt!([stringify!($name)] " {}")
 	};
 }
 
 #[macro_export]
 macro_rules! fmt_tuple_struct {
-	($value:expr => $name:ident { $($field:ident),* }) => {
-		$crate::fmt!([stringify!($name)] " { " $([stringify!($field)] ": " {$field:$value.$field} ", ")* "}")
+	($value:expr => $name:ident ($field0:ident $tfield0:tt $([$($tt0:tt)*])? $(, $field:ident $tfield:tt $([$($tt:tt)*])?)* $(,)?)) => {
+		$crate::fmt!([stringify!($name)] "(" {$field0 = $value.$tfield0;$($($tt0)*)?} $(", " {$field = $value.$tfield;$($($tt)*)?})* ")")
+	};
+
+	($name:ident; ($tt0:tt $(, $tt:tt)* $(,)?) ) => {
+		$crate::fmt!([stringify!($name)] "(" $tt0 $(", " $tt)* ")")
+	};
+
+	($value:expr => $name:ident () ) => {
+		$crate::fmt!([stringify!($name)] "()")
 	};
 }
 
 #[macro_export]
 macro_rules! fmt_unit_struct {
-	($value:expr => $name:ident { $($field:ident),* }) => {
-		$crate::fmt!([stringify!($name)] " { " $([stringify!($field)] ": " {$field:$value.$field} ", ")* "}")
-	};
+    ($name:ident) => {
+        stringify!($name)
+    };
 }
 
 // TODO: return closure
@@ -473,10 +969,24 @@ pub fn test() {
         b: bool,
     }
 
+    struct Tuple(i32, bool);
+
     let struct_ = Struct { a: 12, b: true };
-    let s = fmt_struct!(struct_ => Struct { a, b });
+    let s = fmt_struct!(struct_ => Struct { a [], b });
     let s0 = s.to_string();
-    assert_eq!(s0, "Struct { a: 12, b: true, }");
+    assert_eq!(s0, "Struct { a: 12, b: true }");
+
+    let tuple = Tuple(99, true);
+    let s = fmt_tuple_struct!(tuple => Tuple (a 0, b 1));
+    let s0 = s.to_string();
+    assert_eq!(s0, "Tuple(99, true)");
+
+    const S: &str = fmt_struct!(Struct; { a: {a = 234}, b: {b = false} });
+    let s0 = ToString::to_string(S);
+    assert_eq!(s0, "Struct { a: 234, b: false }");
+
+    const S1: &str = fmt_tuple_struct!(Tuple; ({a = 234}, {b = false}));
+    assert_eq!(S1, "Tuple(234, false)");
 
     macro_rules! xyz {
         () => {
@@ -522,6 +1032,10 @@ pub fn test() {
     let w = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(w);
 
+    let a = 3_i32;
+    let w = fmt!("123" [xyz!()] "abc" {a:i32} "abc");
+    let s0 = ToString::to_string(w);
+
     const _S: &str = fmt!("123" [xyz!()] "abc" "abc" 123);
 
     let a = 3_i32;
@@ -546,7 +1060,7 @@ pub fn test() {
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
-    let s = fmt!("123" [xyz!()] "abc" (&I) "abc" {d:456});
+    let s = fmt!("123" [xyz!()] "abc" (&I) "abc" {d = 456});
     let s0 = ToString::to_string(s);
 
     let s = fmt!("123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
