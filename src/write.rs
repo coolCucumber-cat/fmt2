@@ -95,22 +95,6 @@ pub trait Write {
     }
 
     #[inline]
-    fn write_stdfmtprecision<D>(
-        &mut self,
-        d: &D,
-        precision: Option<usize>,
-    ) -> Result<(), Self::Error>
-    where
-        D: core::fmt::Display + ?Sized,
-    {
-        stdfmtwrite_adapter(self, |w| {
-            let mut options = core::fmt::FormattingOptions::new();
-            options.precision(precision);
-            d.fmt(&mut core::fmt::Formatter::new(w, options))
-        })
-    }
-
-    #[inline]
     fn write_stdfmtbinary<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Binary + ?Sized,
@@ -187,6 +171,22 @@ impl Write for core::fmt::Formatter<'_> {
     }
 
     #[inline]
+    fn write_stdfmtbinary<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    where
+        D: core::fmt::Binary + ?Sized,
+    {
+        d.fmt(self)
+    }
+
+    #[inline]
+    fn write_stdfmthexadecimal<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    where
+        D: core::fmt::LowerHex + ?Sized,
+    {
+        d.fmt(self)
+    }
+
+    #[inline]
     fn write_stdfmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
         self.write_fmt(args)
     }
@@ -200,6 +200,20 @@ impl Write for core::fmt::Formatter<'_> {
 // 		Ok(())
 // 	}
 // }
+
+pub trait WriteInternal: Write {
+    fn borrow_write_internal(&self) -> &Self;
+}
+
+impl<T> WriteInternal for T
+where
+    T: Write + ?Sized,
+{
+    #[inline]
+    fn borrow_write_internal(&self) -> &Self {
+        self
+    }
+}
 
 #[inline]
 fn stdfmtwrite_adapter<W0>(

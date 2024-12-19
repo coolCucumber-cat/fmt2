@@ -165,6 +165,23 @@ impl WritableDebug for str {
     }
 }
 
+// pub trait WritableFor<W>
+// where
+//     W: crate::write::Write + ?Sized,
+// {
+//     fn write_to_for(&self, w: &mut W) -> Result<(), W::Error>;
+// }
+//
+// impl<F, W> WritableFor<W> for F
+// where
+//     F: Fn(&mut W) -> Result<(), W::Error>,
+//     W: crate::write::Write,
+// {
+//     fn write_to_for(&self, w: &mut W) -> Result<(), W::Error> {
+//         self(w)
+//     }
+// }
+
 pub trait WritableConstStr {
     const CONST_STR: &'static str;
 }
@@ -429,7 +446,7 @@ macro_rules! impl_display_for_writable_str {
 mod tests {
     use core::borrow::Borrow;
 
-    use crate::writable::{Writable, WritableDebug};
+    use crate::writable::{Writable, WritableDebug, WritableStaticStr, WritableStr};
 
     use super::ToString;
 
@@ -460,6 +477,18 @@ mod tests {
 
         let s = &mut String::new();
         let s0 = s.borrow_writable_internal();
+
+        let k = {
+            let s = "123";
+            // let s = String::new();
+            s.str()
+        };
+        ToString::to_string(k);
+        let k = {
+            let s = true;
+            s.static_str()
+        };
+        ToString::to_string(k);
     }
 
     #[test]

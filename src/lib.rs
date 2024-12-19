@@ -5,6 +5,7 @@
     fmt_internals,
     formatting_options,
     concat_idents,
+    try_blocks,
     // specialization,
     // min_specialization,
     associated_type_defaults
