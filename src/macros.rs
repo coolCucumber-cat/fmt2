@@ -5,20 +5,20 @@ macro_rules! noop {
 
 #[macro_export]
 macro_rules! use_internal_writable_trait_from_fmt_args {
-    (use { trait $tr:path } as $name:ident;) => {
-        use $tr as $name;
+    ($vis:vis use { trait $tr:path } as $name:ident;) => {
+        $vis use $tr as $name;
     };
-    (use {} as $name:ident;) => {
-        use $crate::writable::WritableInternal as $name;
+    ($vis:vis use {} as $name:ident;) => {
+        $vis use $crate::writable::WritableInternal as $name;
     };
-    (use { ? } as $name:ident;) => {
-        use $crate::writable::WritableDebugInternal as $name;
+    ($vis:vis use { ? } as $name:ident;) => {
+        $vis use $crate::writable::WritableDebugInternal as $name;
     };
-    (use { b } as $name:ident;) => {
-        use $crate::writable::WritableBinaryInternal as $name;
+    ($vis:vis use { b } as $name:ident;) => {
+        $vis use $crate::writable::WritableBinaryInternal as $name;
     };
-    (use { h } as $name:ident;) => {
-        use $crate::writable::WritableHexadecimalInternal as $name;
+    ($vis:vis use { h } as $name:ident;) => {
+        $vis use $crate::writable::WritableHexadecimalInternal as $name;
     };
 }
 
@@ -435,7 +435,19 @@ macro_rules! fmt_internal {
 	// combination of sources (excluding ones that are already covered above)
 	{
 		input: {},
-		output: { $(internal $internal0:tt,)* $(external { $field_name:ident, generic: $($generic:ident)?, ty: $($ty:ty)?, = $value:expr; trait $tr:path }, $(internal $internal:tt,)*)+ },
+		output: {
+			$(internal $internal0:tt,)*
+			$(
+				external {
+					$field_name:ident,
+					generic: $($generic:ident)?,
+					ty: $($ty:ty)?,
+					= $value:expr;
+					$fmt_args:tt
+				},
+				$(internal $internal:tt,)*
+			)+
+		},
 		args: {
 			lifetime: $lifetime:lifetime,
 			optional_lifetime: $($optional_lifetime:lifetime)?,
@@ -448,13 +460,23 @@ macro_rules! fmt_internal {
 			$(let $field_name: ();)*
 		}
 
+		mod traits_ {
+			// import all the traits the generics have with the name of the generic as the name for the import
+			$(
+				$crate::use_internal_writable_trait_from_fmt_args!(pub use $fmt_args as $field_name;);
+			)+
+			// $($(
+			// 	$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as $generic);
+			// )?)+
+		}
+
 		#[allow(non_camel_case_types)]
-		struct W<$lifetime, $($($generic : $tr + ?Sized, )?)+> {
+		struct W<$lifetime, $($($generic : traits_::$field_name + ?Sized, )?)+> {
 			$($field_name : $(&$lifetime $generic)? $($ty)? ),+
 		}
 
 		#[allow(non_camel_case_types)]
-		impl<$lifetime, $($($generic : $tr + ?Sized, )?)+> $crate::writable::Writable for W<$lifetime, $($($generic, )?)+> {
+		impl<$lifetime, $($($generic : traits_::$field_name + ?Sized, )?)+> $crate::writable::Writable for W<$lifetime, $($($generic, )?)+> {
 			#[inline]
 			fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 				where
@@ -463,7 +485,7 @@ macro_rules! fmt_internal {
 					$crate::write_fmt_single_internal!(w => $internal0);
 				)*
 				$(
-					$crate::write_fmt_single_internal!(w => { self.$field_name; trait $tr });
+					$crate::write_fmt_single_internal!(w => { self.$field_name; trait traits_::$field_name });
 					$(
 						$crate::write_fmt_single_internal!(w => $internal);
 					)*
@@ -479,7 +501,7 @@ macro_rules! fmt_internal {
 					+ $crate::len_hint_fmt_single_internal!($internal0)
 				)*
 				$(
-					+ $crate::len_hint_fmt_single_internal!({ self.$field_name; trait $tr })
+					+ $crate::len_hint_fmt_single_internal!({ self.$field_name; trait traits_::$field_name })
 					$(
 						+ $crate::len_hint_fmt_single_internal!($internal)
 					)*
@@ -491,7 +513,7 @@ macro_rules! fmt_internal {
 			$($field_name :
 				$({
 					$crate::noop!($generic);
-					use $tr as A;
+					use traits_::$field_name as A;
 					($value).borrow_writable_internal()
 				})?
 				$({
