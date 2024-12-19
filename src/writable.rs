@@ -186,17 +186,40 @@ pub trait WritableConstStr {
     const CONST_STR: &'static str;
 }
 
+pub trait WritableStaticStrInternal {
+    fn static_str_internal(&self) -> &'static str;
+}
+
+impl<T> WritableStaticStrInternal for T
+where
+    T: WritableConstStr + ?Sized,
+{
+    #[inline]
+    fn static_str_internal(&self) -> &'static str {
+        Self::CONST_STR
+    }
+}
+
 pub trait WritableStaticStr {
     fn static_str(&self) -> &'static str;
 }
 
 impl<T> WritableStaticStr for T
 where
-    T: WritableConstStr + ?Sized,
+    T: WritableStaticStrInternal + ?Sized,
 {
     #[inline]
     fn static_str(&self) -> &'static str {
-        Self::CONST_STR
+        self.static_str_internal()
+    }
+}
+
+impl WritableStaticStr for str
+where
+    Self: 'static,
+{
+    fn static_str(&self) -> &'static str {
+        self
     }
 }
 
@@ -206,11 +229,11 @@ pub trait WritableStr {
 
 impl<T> WritableStr for T
 where
-    T: WritableStaticStr + ?Sized,
+    T: WritableStaticStrInternal + ?Sized,
 {
     #[inline]
     fn str(&self) -> &str {
-        self.static_str()
+        self.static_str_internal()
     }
 }
 
@@ -239,8 +262,8 @@ impl WritableStr for str {
     }
 }
 
-impl WritableStaticStr for bool {
-    fn static_str(&self) -> &'static str {
+impl WritableStaticStrInternal for bool {
+    fn static_str_internal(&self) -> &'static str {
         if *self {
             "true"
         } else {
