@@ -131,6 +131,11 @@ pub trait Write {
 
     #[inline]
     fn flush_hint(&mut self) {}
+
+    #[inline]
+    fn flush_hint_after_newline(&mut self) {
+        self.flush_hint();
+    }
 }
 
 impl<W> Write for W
@@ -202,7 +207,7 @@ impl Write for core::fmt::Formatter<'_> {
 // }
 
 pub trait WriteInternal: Write {
-    fn borrow_write_internal(&self) -> &Self;
+    fn borrow_write_internal(&mut self) -> &mut Self;
 }
 
 impl<T> WriteInternal for T
@@ -210,7 +215,7 @@ where
     T: Write + ?Sized,
 {
     #[inline]
-    fn borrow_write_internal(&self) -> &Self {
+    fn borrow_write_internal(&mut self) -> &mut Self {
         self
     }
 }
@@ -294,17 +299,6 @@ pub trait Flush {
     fn flush(&mut self) -> Result<(), Self::Error>;
 }
 
-pub trait WriteFlush: Write<Error = Self::_Error> + Flush<Error = Self::_Error> {
-    type _Error;
-}
-
-impl<WF, E> WriteFlush for WF
-where
-    WF: Write<Error = E> + Flush<Error = E>,
-{
-    type _Error = E;
-}
-
 #[macro_export]
 macro_rules! impl_write_flush_for_io_write {
 	($($ty:ty),* $(,)?) => {
@@ -318,13 +312,12 @@ macro_rules! impl_write_flush_for_io_write {
 				}
 
                 #[inline]
-                fn writeln<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
-                where
-                    WT: Writable + ?Sized,
-                {
-                    self.write_without_flush_hint_(wt)?;
-                    self.write_newline()
+                fn flush_hint(&mut self) {
+                    let _ = $crate::write::Flush::flush(self);
                 }
+
+                #[inline]
+                fn flush_hint_after_newline(&mut self) {}
 			}
 
 			impl $crate::write::Flush for $ty {
