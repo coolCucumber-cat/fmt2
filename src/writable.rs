@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use crate::write::Write;
 
 pub trait Writable {
@@ -165,6 +167,19 @@ impl WritableDebug for str {
     }
 }
 
+impl WritableDebug for bool {
+    fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        self.write_to(w)
+    }
+
+    fn len_hint(&self) -> usize {
+        Writable::len_hint(self)
+    }
+}
+
 // pub trait WritableFor<W>
 // where
 //     W: crate::write::Write + ?Sized,
@@ -186,40 +201,52 @@ pub trait WritableConstStr {
     const CONST_STR: &'static str;
 }
 
-pub trait WritableStaticStrInternal {
-    fn static_str_internal(&self) -> &'static str;
+pub trait WritableStaticStrAndStr {
+    fn static_str_and_str(&self) -> &'static str;
 }
 
-impl<T> WritableStaticStrInternal for T
+impl<T> WritableStaticStrAndStr for T
 where
     T: WritableConstStr + ?Sized,
 {
     #[inline]
-    fn static_str_internal(&self) -> &'static str {
+    fn static_str_and_str(&self) -> &'static str {
         Self::CONST_STR
     }
 }
 
-pub trait WritableStaticStr {
-    fn static_str(&self) -> &'static str;
+pub trait WritableStaticStrInternal {
+    fn static_str_internal(self) -> &'static str;
 }
 
-impl<T> WritableStaticStr for T
+impl<T> WritableStaticStrInternal for &T
 where
-    T: WritableStaticStrInternal + ?Sized,
+    T: WritableStaticStrAndStr + ?Sized,
 {
     #[inline]
-    fn static_str(&self) -> &'static str {
-        self.static_str_internal()
+    fn static_str_internal(self) -> &'static str {
+        self.static_str_and_str()
     }
 }
 
-impl WritableStaticStr for str
-where
-    Self: 'static,
-{
-    fn static_str(&self) -> &'static str {
+impl WritableStaticStrInternal for &'static str {
+    fn static_str_internal(self) -> &'static str {
         self
+    }
+}
+
+pub trait WritableStaticStr<'a> {
+    fn static_str(&'a self) -> &'static str;
+}
+
+impl<'a, T> WritableStaticStr<'a> for T
+where
+    T: 'a,
+    &'a T: WritableStaticStrInternal,
+{
+    #[inline]
+    fn static_str(&'a self) -> &'static str {
+        WritableStaticStrInternal::static_str_internal(self)
     }
 }
 
@@ -229,11 +256,11 @@ pub trait WritableStr {
 
 impl<T> WritableStr for T
 where
-    T: WritableStaticStrInternal + ?Sized,
+    T: WritableStaticStrAndStr + ?Sized,
 {
     #[inline]
     fn str(&self) -> &str {
-        self.static_str_internal()
+        self.static_str_and_str()
     }
 }
 
@@ -262,8 +289,8 @@ impl WritableStr for str {
     }
 }
 
-impl WritableStaticStrInternal for bool {
-    fn static_str_internal(&self) -> &'static str {
+impl WritableStaticStrAndStr for bool {
+    fn static_str_and_str(&self) -> &'static str {
         if *self {
             "true"
         } else {
@@ -333,6 +360,14 @@ where
     #[inline]
     fn as_ref(&self) -> &T1 {
         self.value.as_ref()
+    }
+}
+
+impl<T, U> Deref for WithWritableStr<T, U> {
+    type Target = Self;
+
+    fn deref(&self) -> &Self::Target {
+        self
     }
 }
 
@@ -518,7 +553,7 @@ mod tests {
     fn write() {
         use crate::{
             writable::{Writable, WritableStr},
-            write::{Flush, Write, WriteFlush, WriteInfallible},
+            write::{Flush, Write, WriteInfallible},
         };
 
         struct Test(bool);
@@ -569,12 +604,6 @@ mod tests {
             }
         }
 
-        fn takes_write_flush<W, E>(w: &W)
-        where
-            W: WriteFlush<_Error = E>,
-        {
-        }
-
         let mut s = String::new();
         s.write(&Test(true)).into_ok();
         assert_eq!(s, "true");
@@ -618,7 +647,5 @@ mod tests {
 
         // assert_eq!(HasCustomFlush.flush_hint(), Err("flushes"));
         // assert_eq!(HasNoCustomFlush.flush_hint(), Ok(()));
-
-        takes_write_flush(&stdout);
     }
 }
