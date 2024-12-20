@@ -69,63 +69,61 @@ pub trait Write {
     }
 
     #[inline]
-    fn write_stdfmtdisplay<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    fn write_std_display<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Display + ?Sized,
     {
-        stdfmtwrite_adapter(self, |w| {
-            d.fmt(&mut core::fmt::Formatter::new(
-                w,
-                core::fmt::FormattingOptions::new(),
-            ))
-        })
+        self.std_formatter_adapter(|f| d.fmt(f))
     }
 
     #[inline]
-    fn write_stdfmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    fn write_std_debug<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Debug + ?Sized,
     {
-        stdfmtwrite_adapter(self, |w| {
-            d.fmt(&mut core::fmt::Formatter::new(
-                w,
-                core::fmt::FormattingOptions::new(),
-            ))
-        })
+        self.std_formatter_adapter(|f| d.fmt(f))
     }
 
     #[inline]
-    fn write_stdfmtbinary<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    fn write_std_binary<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Binary + ?Sized,
     {
-        stdfmtwrite_adapter(self, |w| {
-            d.fmt(&mut core::fmt::Formatter::new(
-                w,
-                core::fmt::FormattingOptions::new(),
-            ))
-        })
+        self.std_formatter_adapter(|f| d.fmt(f))
     }
 
     #[inline]
-    fn write_stdfmthexadecimal<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    fn write_std_octal<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
-        D: core::fmt::LowerHex + ?Sized,
+        D: core::fmt::Octal + ?Sized,
     {
-        stdfmtwrite_adapter(self, |w| {
-            d.fmt(&mut core::fmt::Formatter::new(
-                w,
-                core::fmt::FormattingOptions::new(),
-            ))
-        })
+        self.std_formatter_adapter(|f| d.fmt(f))
     }
 
     #[inline]
-    fn write_stdfmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
+    fn write_std_hex<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    where
+        D: core::fmt::UpperHex + ?Sized,
+    {
+        self.std_formatter_adapter(|f| d.fmt(f))
+    }
+
+    #[inline]
+    fn write_std_precision<D>(&mut self, d: &D, precision: Option<usize>) -> Result<(), Self::Error>
+    where
+        D: core::fmt::Display + ?Sized,
+    {
+        let mut options = core::fmt::FormattingOptions::new();
+        options.precision(precision);
+        self.std_formatter_with_options_adapter(options, |f| d.fmt(f))
+    }
+
+    #[inline]
+    fn write_std_args(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
         if let Some(s) = args.as_str() {
             self.write_str(s)
         } else {
-            stdfmtwrite_adapter(self, |w| core::fmt::write(w, args))
+            self.std_write_adapter(|w| core::fmt::write(w, args))
         }
     }
 
@@ -135,6 +133,71 @@ pub trait Write {
     #[inline]
     fn flush_hint_after_newline(&mut self) {
         self.flush_hint();
+    }
+
+    #[inline]
+    fn std_write_adapter(
+        &mut self,
+        f: impl FnOnce(&mut dyn core::fmt::Write) -> core::fmt::Result,
+    ) -> Result<(), Self::Error> {
+        struct Adapter<'w, W>
+        where
+            W: Write + ?Sized,
+        {
+            writer: &'w mut W,
+            result: Result<(), W::Error>,
+        }
+
+        impl<W> core::fmt::Write for Adapter<'_, W>
+        where
+            W: Write + ?Sized,
+        {
+            #[inline]
+            fn write_str(&mut self, s: &str) -> core::fmt::Result {
+                match self.writer.write_str(s) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        self.result = Err(e);
+                        Err(core::fmt::Error)
+                    }
+                }
+            }
+        }
+
+        let mut write = Adapter {
+            writer: self,
+            result: Ok(()),
+        };
+        if f(&mut write).is_ok() {
+            Ok(())
+        } else {
+            // it's possible for Display to error on its own, but it should be write doing the err
+            debug_assert!(write.result.is_err());
+            write.result
+        }
+    }
+
+    #[inline]
+    fn std_formatter_with_options_adapter(
+        &mut self,
+        options: core::fmt::FormattingOptions,
+        f: impl FnOnce(&mut core::fmt::Formatter) -> core::fmt::Result,
+    ) -> Result<(), Self::Error> {
+        self.std_write_adapter(|w| {
+            let formatter = &mut core::fmt::Formatter::new(w, options);
+            f(formatter)
+        })
+    }
+
+    #[inline]
+    fn std_formatter_adapter(
+        &mut self,
+        f: impl FnOnce(&mut core::fmt::Formatter) -> core::fmt::Result,
+    ) -> Result<(), Self::Error> {
+        self.std_write_adapter(|w| {
+            let formatter = &mut core::fmt::Formatter::new(w, core::fmt::FormattingOptions::new());
+            f(formatter)
+        })
     }
 }
 
@@ -160,40 +223,34 @@ impl Write for core::fmt::Formatter<'_> {
     }
 
     #[inline]
-    fn write_stdfmtdisplay<D>(&mut self, d: &D) -> Result<(), Self::Error>
-    where
-        D: core::fmt::Display + ?Sized,
-    {
-        d.fmt(self)
-    }
-
-    #[inline]
-    fn write_stdfmtdebug<D>(&mut self, d: &D) -> Result<(), Self::Error>
-    where
-        D: core::fmt::Debug + ?Sized,
-    {
-        d.fmt(self)
-    }
-
-    #[inline]
-    fn write_stdfmtbinary<D>(&mut self, d: &D) -> Result<(), Self::Error>
-    where
-        D: core::fmt::Binary + ?Sized,
-    {
-        d.fmt(self)
-    }
-
-    #[inline]
-    fn write_stdfmthexadecimal<D>(&mut self, d: &D) -> Result<(), Self::Error>
-    where
-        D: core::fmt::LowerHex + ?Sized,
-    {
-        d.fmt(self)
-    }
-
-    #[inline]
-    fn write_stdfmtargs(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
+    fn write_std_args(&mut self, args: core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
         self.write_fmt(args)
+    }
+
+    #[inline]
+    fn std_write_adapter(
+        &mut self,
+        f: impl FnOnce(&mut dyn core::fmt::Write) -> core::fmt::Result,
+    ) -> Result<(), Self::Error> {
+        f(self)
+    }
+
+    #[inline]
+    fn std_formatter_with_options_adapter(
+        &mut self,
+        options: core::fmt::FormattingOptions,
+        f: impl FnOnce(&mut core::fmt::Formatter) -> core::fmt::Result,
+    ) -> Result<(), Self::Error> {
+        let formatter = &mut self.with_options(options);
+        f(formatter)
+    }
+
+    #[inline]
+    fn std_formatter_adapter(
+        &mut self,
+        f: impl FnOnce(&mut core::fmt::Formatter) -> core::fmt::Result,
+    ) -> Result<(), Self::Error> {
+        f(self)
     }
 }
 
@@ -217,51 +274,6 @@ where
     #[inline]
     fn borrow_write_internal(&mut self) -> &mut Self {
         self
-    }
-}
-
-#[inline]
-fn stdfmtwrite_adapter<W0>(
-    write: &mut W0,
-    f: impl FnOnce(&mut dyn core::fmt::Write) -> core::fmt::Result,
-) -> Result<(), W0::Error>
-where
-    W0: Write + ?Sized,
-{
-    struct Adapter<'w, W>
-    where
-        W: Write + ?Sized,
-    {
-        write: &'w mut W,
-        result: Result<(), W::Error>,
-    }
-
-    impl<W> core::fmt::Write for Adapter<'_, W>
-    where
-        W: Write + ?Sized,
-    {
-        #[inline]
-        fn write_str(&mut self, s: &str) -> core::fmt::Result {
-            match self.write.write_str(s) {
-                Ok(()) => Ok(()),
-                Err(e) => {
-                    self.result = Err(e);
-                    Err(core::fmt::Error)
-                }
-            }
-        }
-    }
-
-    let mut write = Adapter {
-        write,
-        result: Ok(()),
-    };
-    if f(&mut write).is_ok() {
-        Ok(())
-    } else {
-        // it's possible for Display to error on its own, but it should be write doing the err
-        debug_assert!(write.result.is_err());
-        write.result
     }
 }
 

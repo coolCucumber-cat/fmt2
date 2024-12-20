@@ -13,6 +13,105 @@ pub trait Writable {
     }
 }
 
+pub trait AsWritable: Writable {
+    fn as_writable(&self) -> &Self;
+}
+
+impl<T> AsWritable for T
+where
+    T: Writable + ?Sized,
+{
+    #[inline]
+    fn as_writable(&self) -> &Self {
+        self
+    }
+}
+
+#[macro_export]
+macro_rules! declare_writable_wrapper_struct {
+    { $($Struct:ident $Trait:ident $fn:ident),* $(,)? } => {
+        $(
+            pub struct $Struct<T>(T)
+            where
+                T: ?Sized,
+                Self: $crate::writable::Writable;
+
+            pub trait $Trait {
+                type Target: $crate::writable::Writable + ?Sized;
+                fn $fn(&self) -> &Self::Target;
+            }
+
+            impl<T> $Trait for T
+            where
+                T: ?Sized,
+                $Struct<T>: $crate::writable::Writable,
+            {
+                type Target = $Struct<Self>;
+                #[inline]
+                fn $fn(&self) -> &Self::Target {
+                    unsafe { &*(self as *const Self as *const $Struct<Self>) }
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! declare_std_writable_wrapper_struct {
+    { $($Struct:ident $Trait:ident $fn:ident => $StdTrait:ident $write_fn:ident => { $($ty:ty)* }),* $(,)? } => {
+        $(
+            $crate::declare_writable_wrapper_struct! { $Struct $Trait $fn }
+
+            impl<T> $crate::writable::Writable for $Struct<T>
+            where
+                T: ::core::fmt::$StdTrait + ?Sized,
+            {
+                #[inline]
+                fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
+                where
+                    W: $crate::write::Write + ?Sized,
+                {
+                    $crate::write::Write::$write_fn(w, &self.0)
+                }
+            }
+
+            $(
+                impl $crate::writable::Writable for $Struct<$ty>
+                {
+                    #[inline]
+                    fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
+                    where
+                        W: $crate::write::Write + ?Sized,
+                    {
+                        $crate::write::Write::$write_fn(w, &self.0)
+                    }
+                }
+            )*
+        )*
+    };
+}
+
+macro_rules! declare_std_writable_wrapper_struct_2 {
+    { $($display_debug:ty)*, $($int:ty)* } => {
+        declare_std_writable_wrapper_struct! {
+            StdDisplay AsStdDisplay as_std_display => Display write_std_display => { $($display_debug)* $($int)* },
+            StdDebug AsStdDebug as_std_debug => Debug write_std_debug => { $($display_debug)* $($int)* },
+            StdBinary AsStdBinary as_std_binary => Binary write_std_binary => { $($int)* },
+            StdOctal AsStdOctal as_std_octal => Octal write_std_octal => { $($int)* },
+            StdHex AsStdHex as_std_hex => UpperHex write_std_hex => { $($int)* },
+        }
+    };
+}
+
+declare_writable_wrapper_struct! {
+    Debug AsDebug as_debug,
+    Binary AsBinary as_binary,
+    Octal AsOctal as_octal,
+    Hex AsHex as_hex,
+    StdArguments AsStdArguments as_std_arguments,
+}
+
+declare_std_writable_wrapper_struct_2! { f32 f64, u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
+
 pub trait WritableDebug {
     fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
     where
@@ -152,31 +251,19 @@ where
     }
 }
 
-impl WritableDebug for str {
-    #[inline]
-    fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
+impl Writable for Debug<str> {
+    fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
     where
         W: Write + ?Sized,
     {
-        w.write_str(self)
-    }
-
-    #[inline]
-    fn len_hint(&self) -> usize {
-        self.len()
+        w.write_str(&self.0)
     }
 }
 
-impl WritableDebug for bool {
-    fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
-    where
-        W: Write + ?Sized,
-    {
-        self.write_to(w)
-    }
-
-    fn len_hint(&self) -> usize {
-        Writable::len_hint(self)
+impl AsDebug for bool {
+    type Target = Self;
+    fn as_debug(&self) -> &Self::Target {
+        self
     }
 }
 
@@ -384,84 +471,20 @@ macro_rules! impl_writable_const_str_for {
 }
 
 #[macro_export]
-macro_rules! impl_writable_for_display {
-	{ $($name:ty ),* $(,)? } => {
-		$(
-			impl Writable for $name {
-				#[inline]
-				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtdisplay(self)
-				}
-			}
-		)*
-	};
-}
-
-macro_rules! impl_writable_int_for_display {
-	{ $($name:ty ),* $(,)? } => {
+macro_rules! impl_writable_for_std_display {
+	{ $($ty:ident $writable_fn:ident),* $(,)? } => {
 		$(
 			impl $crate::writable::Writable for $name {
 				#[inline]
 				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 					where
 						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtdisplay(self)
-				}
-			}
-			impl $crate::writable::WritableDebug for $name {
-				#[inline]
-				fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtdebug(self)
-				}
-			}
-			impl $crate::writable::WritableBinary for $name {
-				#[inline]
-				fn write_to_binary<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtbinary(self)
-				}
-			}
-			impl $crate::writable::WritableHexadecimal for $name {
-				#[inline]
-				fn write_to_hexadecimal<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_stdfmthexadecimal(self)
+					$crate::write::Write::write_std_display(w, self)
 				}
 			}
 		)*
 	};
 }
-macro_rules! impl_writable_float_for_display {
-	{ $($name:ty ),* $(,)? } => {
-		$(
-			impl $crate::writable::Writable for $name {
-				#[inline]
-				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtdisplay(self)
-				}
-			}
-			impl $crate::writable::WritableDebug for $name {
-				#[inline]
-				fn write_to_debug<W>(&self, w: &mut W) -> Result<(), W::Error>
-					where
-						W: $crate::write::Write + ?Sized {
-					w.write_stdfmtdebug(self)
-				}
-			}
-		)*
-	};
-}
-
-impl_writable_int_for_display!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
-impl_writable_float_for_display!(f32, f64);
 
 #[macro_export]
 macro_rules! impl_display_for_writable {
@@ -512,7 +535,8 @@ mod tests {
     fn borrow() {
         use super::WritableInternal;
 
-        let i = 32;
+        let i = 32_i32;
+
         let i0 = i.borrow_writable_internal();
 
         let i = &32;
