@@ -3,7 +3,7 @@
 mod tests {
     use core::borrow::Borrow;
 
-    use crate::writable::{ToString, Writable};
+    use crate::write_to::{ToString, WriteTo};
 
     #[test]
     fn test() {}
