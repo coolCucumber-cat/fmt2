@@ -1,4 +1,4 @@
-use crate::writable::{Writable, WritableDebug};
+use crate::write_to::WriteTo;
 
 pub trait Write {
     type Error;
@@ -14,7 +14,7 @@ pub trait Write {
     #[inline]
     fn write<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
     where
-        WT: Writable + ?Sized,
+        WT: WriteTo + ?Sized,
     {
         self.write_without_flush_hint_(wt)?;
         self.flush_hint();
@@ -24,7 +24,7 @@ pub trait Write {
     #[inline]
     fn write_without_flush_hint_<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
     where
-        WT: Writable + ?Sized,
+        WT: WriteTo + ?Sized,
     {
         wt.write_to(self)
     }
@@ -32,30 +32,12 @@ pub trait Write {
     #[inline]
     fn writeln<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
     where
-        WT: Writable + ?Sized,
+        WT: WriteTo + ?Sized,
     {
         self.write_without_flush_hint_(wt)?;
         self.write_newline()?;
-        self.flush_hint();
+        self.flush_hint_after_newline();
         Ok(())
-    }
-
-    #[inline]
-    fn write_debug<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
-    where
-        WT: WritableDebug + ?Sized,
-    {
-        self.write_debug_without_flush_hint_(wt)?;
-        self.flush_hint();
-        Ok(())
-    }
-
-    #[inline]
-    fn write_debug_without_flush_hint_<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
-    where
-        WT: WritableDebug + ?Sized,
-    {
-        wt.write_to_debug(self)
     }
 
     #[inline]
@@ -101,7 +83,7 @@ pub trait Write {
     }
 
     #[inline]
-    fn write_std_hex<D>(&mut self, d: &D) -> Result<(), Self::Error>
+    fn write_std_upper_hex<D>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::UpperHex + ?Sized,
     {
@@ -124,6 +106,15 @@ pub trait Write {
             self.write_str(s)
         } else {
             self.std_write_adapter(|w| core::fmt::write(w, args))
+        }
+    }
+
+    #[inline]
+    fn write_std_args_ref(&mut self, args: &core::fmt::Arguments<'_>) -> Result<(), Self::Error> {
+        if let Some(s) = args.as_str() {
+            self.write_str(s)
+        } else {
+            self.std_write_adapter(|w| core::fmt::write(w, *args))
         }
     }
 
@@ -155,6 +146,26 @@ pub trait Write {
             #[inline]
             fn write_str(&mut self, s: &str) -> core::fmt::Result {
                 match self.writer.write_str(s) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        self.result = Err(e);
+                        Err(core::fmt::Error)
+                    }
+                }
+            }
+
+            fn write_char(&mut self, c: char) -> core::fmt::Result {
+                match self.writer.write_char(c) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        self.result = Err(e);
+                        Err(core::fmt::Error)
+                    }
+                }
+            }
+
+            fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
+                match self.writer.write_std_args(args) {
                     Ok(()) => Ok(()),
                     Err(e) => {
                         self.result = Err(e);
@@ -263,27 +274,13 @@ impl Write for core::fmt::Formatter<'_> {
 // 	}
 // }
 
-pub trait WriteInternal: Write {
-    fn borrow_write_internal(&mut self) -> &mut Self;
-}
-
-impl<T> WriteInternal for T
-where
-    T: Write + ?Sized,
-{
-    #[inline]
-    fn borrow_write_internal(&mut self) -> &mut Self {
-        self
-    }
-}
-
 #[expect(clippy::module_name_repetitions)]
 pub trait WriteInfallible {
     fn write_str_infallible(&mut self, s: &str);
 
     // fn write_infallible<WT>(&mut self, wt: &WT)
     // where
-    // 	WT: Writable + ?Sized,
+    // 	WT: WriteTo + ?Sized,
     // {
     // 	wt.write_to(self).into_ok();
     // }

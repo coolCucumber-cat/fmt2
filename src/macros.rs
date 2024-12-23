@@ -4,134 +4,163 @@ macro_rules! noop {
 }
 
 #[macro_export]
-macro_rules! use_internal_writable_trait_from_fmt_args {
-    ($vis:vis use { { $($fmt_args:tt)* } } as $name:tt;) => {
-        $crate::use_internal_writable_trait_from_fmt_args!($vis use { $($fmt_args)* } as $name;);
+macro_rules! get_write_to_from_fmt_args {
+    { $value:expr; { $($fmt_args:tt)* } } => {
+        $crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
     };
-    ($vis:vis use { trait $tr:path } as $name:tt;) => {
-        $vis use $tr as $name;
-    };
-    ($vis:vis use {} as $name:tt;) => {
-        $vis use $crate::writable::WritableInternal as $name;
-    };
-    ($vis:vis use { ? } as $name:tt;) => {
-        $vis use $crate::writable::WritableDebugInternal as $name;
-    };
-    ($vis:vis use { b } as $name:tt;) => {
-        $vis use $crate::writable::WritableBinaryInternal as $name;
-    };
-    ($vis:vis use { h } as $name:tt;) => {
-        $vis use $crate::writable::WritableHexadecimalInternal as $name;
-    };
+	{ $value:expr; noderef } => {
+		$value
+	};
+    { $value:expr; trait $tr:path } => {{
+        use $tr as _;
+		$value.fmt_internal()
+    }};
+    { $value:expr; } => {{
+        use $crate::write_to::Fmt as _;
+		$value.fmt()
+    }};
+    { $value:expr; ? } => {{
+        use $crate::write_to::FmtDebug as _;
+		$value.fmt_debug()
+    }};
+    { $value:expr; b } => {{
+        use $crate::write_to::FmtBinary as _;
+		$value.fmt_binary()
+    }};
+    { $value:expr; h } => {{
+        use $crate::write_to::FmtHex as _;
+		$value.fmt_hex()
+    }};
+    { $value:expr; std} => {{
+        use $crate::write_to::FmtStdDisplay as _;
+		$value.fmt_std_display()
+    }};
+    { $value:expr; std? } => {{
+        use $crate::write_to::FmtStdDebug as _;
+		$value.fmt_std_debug()
+    }};
+    { $value:expr; std b } => {{
+        use $crate::write_to::FmtStdBinary as _;
+		$value.fmt_std_binary()
+    }};
+    { $value:expr; std h } => {{
+        use $crate::write_to::FmtStdHex as _;
+		$value.fmt_std_hex()
+    }};
 }
 
+#[macro_export]
+macro_rules! write_fmt_single_internal {
+	($writer:expr => { $value:expr; $($fmt_args:tt)* } => $handle_result:path) => {{
+		use $crate::write::Write as _;
+		$handle_result!(
+			($writer).write_without_flush_hint_(
+				$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
+			)
+		);
+	}};
+
+	($writer:expr => [$("", )*] => $handle_result:path) => {{
+		compile_error!("unreachable. dev error or bug using macro");
+	}};
+
+	($writer:expr => [$($value:expr, )+] => $handle_result:path) => {{
+		use $crate::write::Write as _;
+		const S: &str = ::core::concat!($($value),+);
+		if S.len() != 0 {
+			$handle_result!($writer.write_str(S));
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! try_internal {
+    ($value:expr, $label:lifetime) => {
+        ($value)?;
+    };
+}
 #[macro_export]
 macro_rules! write_fmt_single_try_internal {
-	($writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
-		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as _;);
-		($value).write_to_internal($writer)?;
-	}};
-
-	($writer:expr => [$("", )*]) => {{
-		compile_error!("unreachable. dev error or bug using macro");
-	}};
-
-	($writer:expr => [$($value:expr, )+]) => {{
-		use $crate::write::Write as _;
-		const S: &str = ::core::concat!($($value),+);
-		if S.len() != 0 {
-			$writer.write_str(S)?;
-		}
-	}};
+    ($writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::try_internal);
+	};
 }
 
+#[macro_export]
+macro_rules! return_on_err_internal {
+    ($value:expr, $label:lifetime) => {
+        if let ::core::result::Result::Err(err) = $value {
+            return ::core::result::Result::Err(err);
+        }
+    };
+}
 #[macro_export]
 macro_rules! write_fmt_single_return_internal {
-	($writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
-		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as _;);
-		if let ::core::result::Result::Err(err) = ($value).write_to_internal($writer) {
-			return ::core::result::Result::Err(err);
-		}
-	}};
-
-	($writer:expr => [$("", )*]) => {{
-		compile_error!("unreachable. dev error or bug using macro");
-	}};
-
-	($writer:expr => [$($value:expr, )+]) => {{
-		use $crate::write::Write as _;
-		const S: &str = ::core::concat!($($value),+);
-		if S.len() != 0 {
-			if let ::core::result::Result::Err(err) = $writer.write_str(S) {
-				return ::core::result::Result::Err(err);
-			}
-		}
-	}};
+    ($writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::return_on_err_internal);
+	};
 }
 
+#[macro_export]
+macro_rules! return_tuple_on_err_internal {
+    ($value:expr, $label:lifetime) => {
+        if let ::core::result::Result::Err(err) = $value {
+            return;
+        }
+    };
+}
+#[macro_export]
+macro_rules! write_fmt_single_return_infallible_internal {
+    ($writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::return_tuple_on_err_internal);
+	};
+}
+
+#[macro_export]
+macro_rules! break_on_err_internal {
+    ($value:expr, $label:lifetime) => {
+        if let ::core::result::Result::Err(err) = $value {
+            break $label::core::result::Result::Err(err);
+        }
+    };
+}
 #[macro_export]
 macro_rules! write_fmt_single_break_internal {
-	($block_label:lifetime $writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
-		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as _;);
-		if let ::core::result::Result::Err(err) = ($value).write_to_internal($writer) {
-			break $block_label ::core::result::Result::Err(err);
-		}
-	}};
-
-	($block_label:lifetime $writer:expr => [$("", )*]) => {{
-		compile_error!("unreachable. dev error or bug using macro");
-	}};
-
-	($block_label:lifetime $writer:expr => [$($value:expr, )+]) => {{
-		use $crate::write::Write as _;
-		const S: &str = ::core::concat!($($value),+);
-		if S.len() != 0 {
-			if let ::core::result::Result::Err(err) = $writer.write_str(S) {
-				break $block_label ::core::result::Result::Err(err);
-			}
-		}
-	}};
+    ($writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::break_on_err_internal);
+	};
 }
 
 #[macro_export]
-macro_rules! write_fmt_single_break_ignore_err_internal {
-	($block_label:lifetime $writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
-		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as _;);
-		if let ::core::result::Result::Err(_) = ($value).write_to_internal($writer) {
-			break $block_label;
-		}
-	}};
-
-	($block_label:lifetime $writer:expr => [$("", )*]) => {{
-		compile_error!("unreachable. dev error or bug using macro");
-	}};
-
-	($block_label:lifetime $writer:expr => [$($value:expr, )+]) => {{
-		use $crate::write::Write as _;
-		const S: &str = ::core::concat!($($value),+);
-		if S.len() != 0 {
-			if let ::core::result::Result::Err(_) = $writer.write_str(S) {
-				break $block_label;
-			}
-		}
-	}};
+macro_rules! break_tuple_on_err_internal {
+    ($value:expr, $label:lifetime) => {
+        if let ::core::result::Result::Err(err) = $value {
+            break $label;
+        }
+    };
+}
+#[macro_export]
+macro_rules! write_fmt_single_break_infallible_internal {
+    ($writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::break_tuple_on_err_internal);
+	};
 }
 
 #[macro_export]
 macro_rules! len_hint_fmt_single_internal {
-	({ $value:expr; $($fmt_args:tt)* }) => {{
-		$crate::use_internal_writable_trait_from_fmt_args!(use { $($fmt_args)* } as _;);
-		($value).len_hint_internal()
-	}};
+	({ $value:expr; $($fmt_args:tt)* }) => {
+		$crate::write_to::WriteTo::len_hint(
+			$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
+		)
+	};
 
 	([$("", )*]) => {{
 		compile_error!("unreachable. dev error or bug using macro");
 	}};
 
-	([$($value:expr, )+]) => {{
-		const S: &str = ::core::concat!($($value),+);
-		S.len()
-	}};
+	([$($value:expr, )+]) => {
+		::core::concat!($($value),+).len()
+	};
 }
 
 #[macro_export]
@@ -154,10 +183,10 @@ macro_rules! fn_len_hint_internal {
 }
 
 #[macro_export]
-macro_rules! impl_for_writable_with_fn_name_internal {
-	{ $fn_name:ident : $(internal $internal0:tt,)* $(external { $field_name:ident; $fmt_args:tt }, $(internal $internal:tt,)*)* } => {
+macro_rules! impl_for_WriteTo_internal {
+	{ $(internal $internal0:tt,)* $(external { $field_name:ident; $fmt_args:tt }, $(internal $internal:tt,)*)* } => {
 		#[inline]
-		fn $fn_name<W>(&self, w: &mut W) -> Result<(), W::Error>
+		fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 			where
 				W: $crate::write::Write + ?Sized {
 
@@ -182,20 +211,6 @@ macro_rules! impl_for_writable_with_fn_name_internal {
 				)*
 			)
 		}
-	};
-}
-
-#[macro_export]
-macro_rules! impl_for_writable_internal {
-	($($tt:tt)*) => {
-		$crate::impl_for_writable_with_fn_name_internal!(write_to: $($tt)*);
-	};
-}
-
-#[macro_export]
-macro_rules! impl_for_writable_debug_internal {
-	($($tt:tt)*) => {
-		$crate::impl_for_writable_with_fn_name_internal!(write_to_debug: $($tt)*);
 	};
 }
 
@@ -386,11 +401,11 @@ macro_rules! fmt_internal {
 			)*
 		},
 		args: {
-			writable_fn_name: $writable_fn_name:ident,
+			WriteTo_fn_name: $WriteTo_fn_name:ident,
 		}
 	} => {
-		$crate::impl_for_writable_with_fn_name_internal! {
-			$writable_fn_name:
+		$crate::impl_for_WriteTo_with_fn_name_internal! {
+			$WriteTo_fn_name:
 			$(internal $internal0,)*
 			$(external { $field_name; $fmt_args }, $(internal $internal,)*)*
 		}
@@ -429,26 +444,26 @@ macro_rules! fmt_internal {
 		compile_error!("unreachable. dev error in macro");
 	}};
 
-	// only one non-capturing, writable expression (no wrapper struct, since it's only one and already writable)
+	// only one non-capturing, WriteTo expression (no wrapper struct, since it's only one and already WriteTo)
 	{
 		input: {},
 		output: { internal { $value:expr; } },
 		args: $args:tt
 	} => {{
-		use $crate::writable::WritableInternal as _;
-		($value).borrow_writable_internal()
+		use $crate::write_to::WriteToInternal as _;
+		($value).borrow_WriteTo_internal()
 	}};
-	// only one capturing, writable expression (no wrapper struct, since it's only one and already writable)
+	// only one capturing, WriteTo expression (no wrapper struct, since it's only one and already WriteTo)
 	{
 		input: {},
 		output: { external { $field_name:ident = $value:expr; } },
 		args: $args:tt
 	} => {{
-		use $crate::writable::WritableInternal as _;
-		($value).borrow_writable_internal()
+		use $crate::write_to::WriteToInternal as _;
+		($value).borrow_WriteTo_internal()
 	}};
 
-	// only one capturing, writable expression (no wrapper struct, since it's only one and already writable. no borrow it's a concrete type)
+	// only one capturing, WriteTo expression (no wrapper struct, since it's only one and already WriteTo. no borrow it's a concrete type)
 	{
 		input: {},
 		output: { external { $field_name:ident : $ty:ty = $value:expr; } },
@@ -457,7 +472,7 @@ macro_rules! fmt_internal {
 		$value
 	};
 
-	// at least one non-capturing expression, no capturing expressions, any amount of literals (but not one non-capturing, writable expression because it's already covered)
+	// at least one non-capturing expression, no capturing expressions, any amount of literals (but not one non-capturing, WriteTo expression because it's already covered)
 	{
 		input: {},
 		output: { $(internal $internal:tt,)+ },
@@ -469,8 +484,8 @@ macro_rules! fmt_internal {
 	} => {$($reference)? {
 		struct W;
 
-		impl $crate::writable::Writable for W {
-			$crate::impl_for_writable_internal! { $(internal $internal,)+ }
+		impl $crate::write_to::WriteTo for W {
+			$crate::impl_for_WriteTo_internal! { $(internal $internal,)+ }
 		}
 
 		W
@@ -486,22 +501,14 @@ macro_rules! fmt_internal {
 			reference: { $($reference:tt)? },
 		}
 	} => {$($reference)? {
-		// import all the traits with the name of the field as the name.
-		// it's in a module because otherwise the names clash with the generics and also so that they are private
-		mod traits_ {
-			$(
-				$crate::use_internal_writable_trait_from_fmt_args!(pub use $fmt_args as $field_name;);
-			)+
-		}
-
 		#[allow(non_camel_case_types)]
 		struct W<$($optional_lifetime)?> {
 			$($field_name : $ty ),+
 		}
 
 		#[allow(non_camel_case_types)]
-		impl<$($optional_lifetime)?> $crate::writable::Writable for W<$($optional_lifetime)?> {
-			$crate::impl_for_writable_internal! {
+		impl<$($optional_lifetime)?> $crate::write_to::WriteTo for W<$($optional_lifetime)?> {
+			$crate::impl_for_WriteTo_internal! {
 				$(internal $internal0,)*
 				$(external { $field_name; $fmt_args }, $(internal $internal,)*)+
 			}
@@ -539,24 +546,16 @@ macro_rules! fmt_internal {
 			$(let $field_name: ();)*
 		}
 
-		// import all the traits with the name of the field as the name.
-		// it's in a module because otherwise the names clash with the generics and also so that they are private
-		mod traits_ {
-			$(
-				$crate::use_internal_writable_trait_from_fmt_args!(pub use $fmt_args as $field_name;);
-			)+
-		}
-
 		#[allow(non_camel_case_types)]
-		struct W<$lifetime, $($($generic : traits_::$field_name + ?Sized, )?)+> {
+		struct W<$lifetime, $($($generic : $crate::write_to::WriteTo + ?Sized, )?)+> {
 			$($field_name : $(&$lifetime $generic)? $($ty)? ),+
 		}
 
 		#[allow(non_camel_case_types)]
-		impl<$lifetime, $($($generic : traits_::$field_name + ?Sized, )?)+> $crate::writable::Writable for W<$lifetime, $($($generic, )?)+> {
-			$crate::impl_for_writable_internal! {
+		impl<$lifetime, $($($generic : $crate::write_to::WriteTo + ?Sized, )?)+> $crate::write_to::WriteTo for W<$lifetime, $($($generic, )?)+> {
+			$crate::impl_for_WriteTo_internal! {
 				$(internal $internal0,)*
-				$(external { $field_name; $fmt_args }, $(internal $internal,)*)+
+				$(external { $field_name; noderef }, $(internal $internal,)*)+
 			}
 		}
 
@@ -564,8 +563,7 @@ macro_rules! fmt_internal {
 			$($field_name :
 				$({
 					$crate::noop!($generic);
-					use traits_::$field_name as _;
-					($value).borrow_writable_internal()
+					$crate::get_write_to_from_fmt_args! { $value; $fmt_args }
 				})?
 				$({
 					$crate::noop!($ty);
@@ -700,11 +698,9 @@ macro_rules! write_fmt_internal {
 			writer: $writer:expr,
 			ignore_err: false,
 		}
-	} => {'block_label: {
-		use $crate::write::WriteInternal as _;
-		let writer = $writer.borrow_write_internal();
+	} => {'block: {
 		$(
-			$crate::write_fmt_single_break_internal!('block_label writer => $fmt);
+			$crate::write_fmt_single_break_internal!($writer => $fmt);
 		)+
 		::core::result::Result::Ok(())
 	}};
@@ -715,11 +711,11 @@ macro_rules! write_fmt_internal {
 			writer: $writer:expr,
 			ignore_err: true,
 		}
-	} => {'block_label: {
+	} => {'block: {
 		use $crate::write::WriteInternal as _;
 		let writer = $writer.borrow_write_internal();
 		$(
-			$crate::write_fmt_single_break_ignore_err_internal!('block_label writer => $fmt);
+			$crate::write_fmt_single_break_ignore_err_internal!($writer => $fmt);
 		)+
 	}};
 }
@@ -748,7 +744,9 @@ macro_rules! fmt_advanced {
 			}
 		}
 	};
-	{ { ? # } => $($tt:tt)* } => {
+	{ { for &self } => $($tt:tt)* } => {{
+	}};
+	{ (? #) => $($tt:tt)* } => {
 		$crate::write_fmt_internal! {
 			input: { $($tt, )* },
 			output: {},
@@ -758,7 +756,7 @@ macro_rules! fmt_advanced {
 			}
 		}
 	};
-	{ { # } => $($tt:tt)* } => {
+	{ (#) => $($tt:tt)* } => {
 		$crate::write_fmt_internal! {
 			input: { $($tt, )* },
 			output: {},
@@ -768,7 +766,7 @@ macro_rules! fmt_advanced {
 			}
 		}
 	};
-	{ { ? $writer:expr } => $($tt:tt)* } => {
+	{ (? $writer:expr) => $($tt:tt)* } => {
 		$crate::write_fmt_internal! {
 			input: { $($tt, )* },
 			output: {},
@@ -778,40 +776,13 @@ macro_rules! fmt_advanced {
 			}
 		}
 	};
-	{ { $writer:expr } => $($tt:tt)* } => {
+	{ ($writer:expr) => $($tt:tt)* } => {
 		$crate::write_fmt_internal! {
 			input: { $($tt, )* },
 			output: {},
 			args: {
 				writer: $writer,
 				ignore_err: true,
-			}
-		}
-	};
-	{ [impl_for_writable] => $($tt:tt)* } => {
-		$crate::fmt_internal! {
-			input: { $($tt, )* },
-			output: {},
-			args: {
-				writable_fn_name: write_to,
-			}
-		}
-	};
-	{ [impl_for_writable_debug] => $($tt:tt)* } => {
-		$crate::fmt_internal! {
-			input: { $($tt, )* },
-			output: {},
-			args: {
-				writable_fn_name: write_to_debug,
-			}
-		}
-	};
-	{ [impl_for_writable with: $fn_name:ident] => $($tt:tt)* } => {
-		$crate::fmt_internal! {
-			input: { $($tt, )* },
-			output: {},
-			args: {
-				writable_fn_name: $fn_name,
 			}
 		}
 	};
@@ -834,16 +805,16 @@ macro_rules! fmt_no_ref {
 #[macro_export]
 macro_rules! write_fmt {
 	(# => $($tt:tt)*) => {
-		$crate::fmt_advanced!({ # } => $($tt)*)
+		$crate::fmt_advanced!((#) => $($tt)*)
 	};
 	(? # => $($tt:tt)*) => {
-		$crate::fmt_advanced!({ ? # } => $($tt)*)
+		$crate::fmt_advanced!((? #) => $($tt)*)
 	};
 	($writer:expr => $($tt:tt)*) => {
-		$crate::fmt_advanced!({ $writer } => $($tt)*)
+		$crate::fmt_advanced!(($writer) => $($tt)*)
 	};
 	(? $writer:expr => $($tt:tt)*) => {
-		$crate::fmt_advanced!({ ? $writer } => $($tt)*)
+		$crate::fmt_advanced!((? $writer) => $($tt)*)
 	};
 }
 
@@ -930,15 +901,37 @@ macro_rules! default_token {
 pub fn test() {
     use core::ops::Deref;
 
-    use crate::writable::{ToString, Writable, WritableDebug};
+    use crate::{
+        write::Write,
+        write_to::{Fmt, Fmt2, ToString, WriteTo},
+    };
 
     struct Struct {
         a: i32,
         b: bool,
     }
 
-    impl WritableDebug for Struct {
-        fmt_struct_debug!([impl_for_writable_debug] => Struct; { a, b, });
+    impl Fmt2 for Struct {
+        fn fmt(&self) -> &impl crate::write_to::WriteTo {
+            struct W<T>(T)
+            where
+                T: ?Sized;
+
+            impl<T> WriteTo for W<T>
+            where
+                T: ?Sized,
+            {
+                fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+                where
+                    W: crate::write::Write + ?Sized,
+                {
+                    let f = |s: &T, w: &mut W| write_fmt!(? w => "");
+                    f(&self.0, w)
+                }
+            }
+
+            unsafe { &*(self as *const Self as *const W<Self>) }
+        }
     }
 
     struct Tuple(i32, bool);
@@ -970,50 +963,61 @@ pub fn test() {
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut *String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a = String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
     let s = fmt_no_ref!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a: Box<str> = Box::from("abc");
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &3_i32;
     let s = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
+    assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
     let w = fmt!("123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(w);
+    assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
     let w = fmt!("123" [xyz!()] "abc" {a: i32} "abc");
     let s0 = ToString::to_string(w);
+    assert_eq!(s0, "123XYZabc3abc");
 
     const _S: &str = fmt!("123" [xyz!()] "abc" "abc" 123);
+    assert_eq!(_S, "123XYZabcabc123");
 
     let a = 3_i32;
     const I: i32 = 32;
