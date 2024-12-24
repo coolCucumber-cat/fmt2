@@ -14,22 +14,15 @@ pub trait WriteTo {
 }
 
 pub trait Fmt {
-    type Target: crate::write_to::WriteTo + ?Sized;
-
-    fn fmt(&self) -> &Self::Target;
-}
-
-pub trait Fmt2 {
-    fn fmt(&self) -> &impl WriteTo;
+    fn fmt(&self) -> &(impl WriteTo + ?Sized);
 }
 
 impl<T> Fmt for T
 where
     T: WriteTo + ?Sized,
 {
-    type Target = Self;
     #[inline]
-    fn fmt(&self) -> &Self::Target {
+    fn fmt(&self) -> &(impl WriteTo + ?Sized) {
         self
     }
 }
@@ -44,8 +37,7 @@ macro_rules! declare_write_to_wrapper_struct_internal {
                 Self: $crate::write_to::WriteTo;
 
             pub trait $Trait {
-                type Target: $crate::write_to::WriteTo + ?Sized;
-                fn $fn(&self) -> &Self::Target;
+                fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
             }
 
             impl<T> $Trait for T
@@ -53,9 +45,8 @@ macro_rules! declare_write_to_wrapper_struct_internal {
                 T: ?Sized,
                 $Struct<T>: $crate::write_to::WriteTo,
             {
-                type Target = $Struct<Self>;
                 #[inline]
-                fn $fn(&self) -> &Self::Target {
+                fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
                     unsafe { &*(self as *const Self as *const $Struct<Self>) }
                 }
             }
@@ -88,9 +79,8 @@ macro_rules! impl_fmt_trait_internal {
     { $StdFmtTrait:ident $std_fmt_fn:ident => $FmtTrait:ident $fmt_fn:ident => $($ty:ty)*} => {
         $(
             impl $FmtTrait for $ty {
-                type Target = <Self as $StdFmtTrait>::Target;
                 #[inline]
-                fn $fmt_fn(&self) -> &Self::Target {
+                fn $fmt_fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
                     $StdFmtTrait::$std_fmt_fn(self)
                 }
             }
@@ -137,12 +127,12 @@ impl WriteTo for Debug<str> {
     }
 }
 
-impl FmtDebug for bool {
-    type Target = Self;
-    fn fmt_debug(&self) -> &Self::Target {
-        self
-    }
-}
+// impl FmtDebug for bool {
+//     type Target = Self;
+//     fn fmt_debug(&self) -> &Self::Target {
+//         self
+//     }
+// }
 
 // pub trait WriteToFor<W>
 // where
