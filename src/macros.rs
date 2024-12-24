@@ -51,31 +51,32 @@ macro_rules! get_write_to_from_fmt_args {
 
 #[macro_export]
 macro_rules! write_fmt_single_internal {
-	($writer:expr => { $value:expr; $($fmt_args:tt)* } => $handle_result:path) => {{
+	($writer:expr => { $value:expr; $($fmt_args:tt)* } => $handle_result:path $(=> $label:lifetime)?) => {{
 		use $crate::write::Write as _;
 		$handle_result!(
 			($writer).write_without_flush_hint_(
 				$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
 			)
+			$(, $label)?
 		);
 	}};
 
-	($writer:expr => [$("", )*] => $handle_result:path) => {{
+	($writer:expr => [$("", )*] => $handle_result:path $(=> $label:lifetime)?) => {{
 		compile_error!("unreachable. dev error or bug using macro");
 	}};
 
-	($writer:expr => [$($value:expr, )+] => $handle_result:path) => {{
+	($writer:expr => [$($value:expr, )+] => $handle_result:path $(=> $label:lifetime)?) => {{
 		use $crate::write::Write as _;
 		const S: &str = ::core::concat!($($value),+);
 		if S.len() != 0 {
-			$handle_result!($writer.write_str(S));
+			$handle_result!($writer.write_str(S) $(, $label)?);
 		}
 	}};
 }
 
 #[macro_export]
 macro_rules! try_internal {
-    ($value:expr, $label:lifetime) => {
+    ($value:expr $(, $label:lifetime)?) => {
         ($value)?;
     };
 }
@@ -88,7 +89,7 @@ macro_rules! write_fmt_single_try_internal {
 
 #[macro_export]
 macro_rules! return_on_err_internal {
-    ($value:expr, $label:lifetime) => {
+    ($value:expr $(, $label:lifetime)?) => {
         if let ::core::result::Result::Err(err) = $value {
             return ::core::result::Result::Err(err);
         }
@@ -103,7 +104,7 @@ macro_rules! write_fmt_single_return_internal {
 
 #[macro_export]
 macro_rules! return_tuple_on_err_internal {
-    ($value:expr, $label:lifetime) => {
+    ($value:expr $(, $label:lifetime)?) => {
         if let ::core::result::Result::Err(err) = $value {
             return;
         }
@@ -126,8 +127,8 @@ macro_rules! break_on_err_internal {
 }
 #[macro_export]
 macro_rules! write_fmt_single_break_internal {
-    ($writer:expr => $tt:tt) => {
-		$crate::write_fmt_single_internal!($writer => $tt => $crate::break_on_err_internal);
+    ($label:lifetime $writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::break_on_err_internal => $label);
 	};
 }
 
@@ -141,8 +142,8 @@ macro_rules! break_tuple_on_err_internal {
 }
 #[macro_export]
 macro_rules! write_fmt_single_break_infallible_internal {
-    ($writer:expr => $tt:tt) => {
-		$crate::write_fmt_single_internal!($writer => $tt => $crate::break_tuple_on_err_internal);
+    ($label:lifetime $writer:expr => $tt:tt) => {
+		$crate::write_fmt_single_internal!($writer => $tt => $crate::break_tuple_on_err_internal => $label);
 	};
 }
 
@@ -183,7 +184,7 @@ macro_rules! fn_len_hint_internal {
 }
 
 #[macro_export]
-macro_rules! impl_for_WriteTo_internal {
+macro_rules! impl_for_write_to_internal {
 	{ $(internal $internal0:tt,)* $(external { $field_name:ident; $fmt_args:tt }, $(internal $internal:tt,)*)* } => {
 		#[inline]
 		fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
@@ -401,11 +402,11 @@ macro_rules! fmt_internal {
 			)*
 		},
 		args: {
-			WriteTo_fn_name: $WriteTo_fn_name:ident,
+			write_to_fn_name: $write_to_fn_name:ident,
 		}
 	} => {
-		$crate::impl_for_WriteTo_with_fn_name_internal! {
-			$WriteTo_fn_name:
+		$crate::impl_for_write_to_with_fn_name_internal! {
+			$write_to_fn_name:
 			$(internal $internal0,)*
 			$(external { $field_name; $fmt_args }, $(internal $internal,)*)*
 		}
@@ -450,8 +451,8 @@ macro_rules! fmt_internal {
 		output: { internal { $value:expr; } },
 		args: $args:tt
 	} => {{
-		use $crate::write_to::WriteToInternal as _;
-		($value).borrow_WriteTo_internal()
+		use $crate::write_to::Fmt as _;
+		($value).fmt()
 	}};
 	// only one capturing, WriteTo expression (no wrapper struct, since it's only one and already WriteTo)
 	{
@@ -459,8 +460,8 @@ macro_rules! fmt_internal {
 		output: { external { $field_name:ident = $value:expr; } },
 		args: $args:tt
 	} => {{
-		use $crate::write_to::WriteToInternal as _;
-		($value).borrow_WriteTo_internal()
+		use $crate::write_to::Fmt as _;
+		($value).fmt()
 	}};
 
 	// only one capturing, WriteTo expression (no wrapper struct, since it's only one and already WriteTo. no borrow it's a concrete type)
@@ -485,7 +486,7 @@ macro_rules! fmt_internal {
 		struct W;
 
 		impl $crate::write_to::WriteTo for W {
-			$crate::impl_for_WriteTo_internal! { $(internal $internal,)+ }
+			$crate::impl_for_write_to_internal! { $(internal $internal,)+ }
 		}
 
 		W
@@ -508,7 +509,7 @@ macro_rules! fmt_internal {
 
 		#[allow(non_camel_case_types)]
 		impl<$($optional_lifetime)?> $crate::write_to::WriteTo for W<$($optional_lifetime)?> {
-			$crate::impl_for_WriteTo_internal! {
+			$crate::impl_for_write_to_internal! {
 				$(internal $internal0,)*
 				$(external { $field_name; $fmt_args }, $(internal $internal,)*)+
 			}
@@ -553,7 +554,7 @@ macro_rules! fmt_internal {
 
 		#[allow(non_camel_case_types)]
 		impl<$lifetime, $($($generic : $crate::write_to::WriteTo + ?Sized, )?)+> $crate::write_to::WriteTo for W<$lifetime, $($($generic, )?)+> {
-			$crate::impl_for_WriteTo_internal! {
+			$crate::impl_for_write_to_internal! {
 				$(internal $internal0,)*
 				$(external { $field_name; noderef }, $(internal $internal,)*)+
 			}
@@ -700,8 +701,8 @@ macro_rules! write_fmt_internal {
 		}
 	} => {'block: {
 		$(
-			$crate::write_fmt_single_break_internal!($writer => $fmt);
-		)+
+			$crate::write_fmt_single_break_internal!('block $writer => $fmt);
+		)*
 		::core::result::Result::Ok(())
 	}};
 	{
@@ -715,8 +716,8 @@ macro_rules! write_fmt_internal {
 		use $crate::write::WriteInternal as _;
 		let writer = $writer.borrow_write_internal();
 		$(
-			$crate::write_fmt_single_break_ignore_err_internal!($writer => $fmt);
-		)+
+			$crate::write_fmt_single_break_ignore_err_internal!('block $writer => $fmt);
+		)*
 	}};
 }
 
@@ -916,6 +917,14 @@ pub fn test() {
             struct W<T>(T)
             where
                 T: ?Sized;
+            impl<T> W<T>
+            where
+                T: ?Sized,
+            {
+                fn new(t: &T) -> &Self {
+                    unsafe { &*(t as *const T as *const Self) }
+                }
+            }
 
             impl<T> WriteTo for W<T>
             where
@@ -925,12 +934,12 @@ pub fn test() {
                 where
                     W: crate::write::Write + ?Sized,
                 {
-                    let f = |s: &T, w: &mut W| write_fmt!(? w => "");
-                    f(&self.0, w)
+                    let s = &self.0;
+                    write_fmt!(? w => "1")
                 }
             }
 
-            unsafe { &*(self as *const Self as *const W<Self>) }
+            W::new(self)
         }
     }
 

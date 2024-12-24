@@ -35,7 +35,7 @@ where
 }
 
 #[macro_export]
-macro_rules! declare_WriteTo_wrapper_struct_internal {
+macro_rules! declare_write_to_wrapper_struct_internal {
     { $($Struct:ident $Trait:ident $fn:ident),* $(,)? } => {
         $(
             pub struct $Struct<T>(T)
@@ -63,10 +63,10 @@ macro_rules! declare_WriteTo_wrapper_struct_internal {
     };
 }
 
-macro_rules! declare_std_WriteTo_wrapper_struct_internal {
+macro_rules! declare_std_write_to_wrapper_struct_internal {
     { $($Struct:ident $Trait:ident $fn:ident => $StdTrait:ident $write_fn:ident),* $(,)? } => {
         $(
-            $crate::declare_WriteTo_wrapper_struct_internal! { $Struct $Trait $fn }
+            $crate::declare_write_to_wrapper_struct_internal! { $Struct $Trait $fn }
 
             impl<T> $crate::write_to::WriteTo for $Struct<T>
             where
@@ -98,14 +98,14 @@ macro_rules! impl_fmt_trait_internal {
     };
 }
 
-declare_WriteTo_wrapper_struct_internal! {
+declare_write_to_wrapper_struct_internal! {
     Debug   FmtDebug    fmt_debug,
     Binary  FmtBinary   fmt_binary,
     Octal   FmtOctal    fmt_octal,
     Hex     FmtHex      fmt_hex,
 }
 
-declare_std_WriteTo_wrapper_struct_internal! {
+declare_std_write_to_wrapper_struct_internal! {
     StdDisplay  FmtStdDisplay   fmt_std_display => Display  write_std_display,
     StdDebug    FmtStdDebug     fmt_std_debug   => Debug    write_std_debug,
     StdBinary   FmtStdBinary    fmt_std_binary  => Binary   write_std_binary,
@@ -333,11 +333,11 @@ impl<T, U> Deref for WithStr<T, U> {
 }
 
 #[macro_export]
-macro_rules! impl_WriteTo_const_str_for {
+macro_rules! impl_write_to_const_str_for {
 	{ $($name:path $(=> $value:expr)?),* $(,)? } => {
 		$(
-			/// also implements [`WriteToStr`] and [`WriteToStaticStr`]
-			impl $crate::write_to::WriteToConstStr for $name {
+			/// also implements [`Str`] and [`StaticStr`]
+			impl $crate::write_to::ConstStr for $name {
 				const CONST_STR: &str = $crate::default_token!($($value)?, stringify!($name));
 			}
 		)*
@@ -345,8 +345,8 @@ macro_rules! impl_WriteTo_const_str_for {
 }
 
 #[macro_export]
-macro_rules! impl_WriteTo_for_std_display {
-	{ $($ty:ident $WriteTo_fn:ident),* $(,)? } => {
+macro_rules! impl_write_to_for_std_display {
+	{ $($ty:ident $write_to_fn:ident),* $(,)? } => {
 		$(
 			impl $crate::write_to::WriteTo for $name {
 				#[inline]
@@ -361,7 +361,7 @@ macro_rules! impl_WriteTo_for_std_display {
 }
 
 #[macro_export]
-macro_rules! impl_display_for_WriteTo {
+macro_rules! impl_display_for_write_to {
 	{ $($name:ty),* $(,)? } => {
 		$(
 			impl ::core::fmt::Display for $name {
@@ -375,13 +375,13 @@ macro_rules! impl_display_for_WriteTo {
 }
 
 #[macro_export]
-macro_rules! impl_display_for_WriteTo_str {
+macro_rules! impl_display_for_str {
 	{ $($name:ty),* $(,)? } => {
 		$(
 			impl ::core::fmt::Display for $name {
 				#[inline]
 				fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-					::core::fmt::Formatter::write_str(f, $crate::write_to::WriteToStr::str(self))
+					::core::fmt::Formatter::write_str(f, $crate::write_to::Str::str(self))
 				}
 			}
 		)*
@@ -438,34 +438,6 @@ mod tests {
             }
         }
 
-        struct HasNoCustomFlush;
-
-        impl Write for HasNoCustomFlush {
-            type Error = u32;
-
-            fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-                Ok(())
-            }
-        }
-
-        struct HasCustomFlush;
-
-        impl Write for HasCustomFlush {
-            type Error = u32;
-
-            fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-                Ok(())
-            }
-        }
-
-        impl Flush for HasCustomFlush {
-            type Error = &'static str;
-
-            fn flush(&mut self) -> Result<(), Self::Error> {
-                Err("flushed")
-            }
-        }
-
         let mut s = String::new();
         s.write(&Test(true)).into_ok();
         assert_eq!(s, "true");
@@ -493,13 +465,5 @@ mod tests {
         let mut s = String::new();
         "123abc".write_to(&mut s).into_ok();
         assert_eq!(s, "123abc");
-
-        let mut stdout = std::io::stdout();
-        stdout.write("abc").unwrap();
-        // WriteFlush::flush(&mut stdout).unwrap();
-        stdout.flush().unwrap();
-
-        // assert_eq!(HasCustomFlush.flush_hint(), Err("flushes"));
-        // assert_eq!(HasNoCustomFlush.flush_hint(), Ok(()));
     }
 }
