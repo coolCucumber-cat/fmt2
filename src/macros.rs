@@ -686,7 +686,7 @@ macro_rules! write_fmt_internal {
 	} => {{
 		compile_error!(concat!(
 			"expressions must be either valid literals or in {curly} or [square] brackets\n",
-			"see documentation for the `fmt` macro\n",
+			"see documentation for the `write_fmt` macro\n",
 			stringify!($tt),
 		));
 	}};
@@ -713,10 +713,8 @@ macro_rules! write_fmt_internal {
 			ignore_err: true,
 		}
 	} => {'block: {
-		use $crate::write::WriteInternal as _;
-		let writer = $writer.borrow_write_internal();
 		$(
-			$crate::write_fmt_single_break_ignore_err_internal!('block $writer => $fmt);
+			$crate::write_fmt_single_break_infallible_internal!('block $writer => $fmt);
 		)*
 	}};
 }
@@ -745,7 +743,29 @@ macro_rules! fmt_advanced {
 			}
 		}
 	};
-	{ { for &self } => $($tt:tt)* } => {{
+	{ { &$name:ident : $ty:ty } => $($tt:tt)* } => {
+		$crate::fmt_advanced! { { &$name : $ty = $name} => $($tt)* }
+	};
+	{ { &$name:ident : $ty:ty = $value:expr } => $($tt:tt)* } => {{
+		struct W($ty);
+
+		impl W {
+			fn new(t: &$ty) -> &Self {
+				unsafe { &*(t as *const $ty as *const Self) }
+			}
+		}
+
+		impl WriteTo for W {
+			fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+			where
+				W: $crate::write::Write + ?Sized,
+			{
+				let $name: &$ty = &self.0;
+				write_fmt!(? writer => $($tt)*)
+			}
+		}
+
+		W::new($value)
 	}};
 	{ (? #) => $($tt:tt)* } => {
 		$crate::write_fmt_internal! {
@@ -904,7 +924,7 @@ pub fn test() {
 
     use crate::{
         write::Write,
-        write_to::{Fmt, ToString, WriteTo},
+        write_to::{Fmt, FmtDebug, ToString, WriteTo},
     };
 
     struct Struct {
@@ -914,33 +934,13 @@ pub fn test() {
 
     impl Fmt for Struct {
         fn fmt(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
-            struct W<T>(T)
-            where
-                T: ?Sized;
+            fmt_advanced!({ &s: Struct = self} => "a = " {s.a} ", b = " {s.b})
+        }
+    }
 
-            impl<T> W<T>
-            where
-                T: ?Sized,
-            {
-                fn new(t: &T) -> &Self {
-                    unsafe { &*(t as *const T as *const Self) }
-                }
-            }
-
-            impl<T> WriteTo for W<T>
-            where
-                T: ?Sized,
-            {
-                fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
-                where
-                    W: crate::write::Write + ?Sized,
-                {
-                    let s = &self.0;
-                    write_fmt!(? w => "1")
-                }
-            }
-
-            W::new(self)
+    impl FmtDebug for Struct {
+        fn fmt_debug(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
+            fmt_struct!({ &s: Struct = self } => Struct; { a: {s.a}, b: {s.b} })
         }
     }
 
