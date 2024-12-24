@@ -904,7 +904,7 @@ pub fn test() {
 
     use crate::{
         write::Write,
-        write_to::{Fmt, Fmt2, ToString, WriteTo},
+        write_to::{Fmt, ToString, WriteTo},
     };
 
     struct Struct {
@@ -912,11 +912,12 @@ pub fn test() {
         b: bool,
     }
 
-    impl Fmt2 for Struct {
-        fn fmt(&self) -> &impl crate::write_to::WriteTo {
+    impl Fmt for Struct {
+        fn fmt(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
             struct W<T>(T)
             where
                 T: ?Sized;
+
             impl<T> W<T>
             where
                 T: ?Sized,
