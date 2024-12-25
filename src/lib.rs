@@ -8,7 +8,10 @@
 //! - clean up
 //! - testing
 //! - git and github
-//! - reduce repetetion and use good style and techniques. more macro recursion instead of repetition
+//! - reduce repetetion use good style and techniques. more macro recursion instead of repetition
+//! - reduce repetition by avoiding polishing work at start (move all resposibility to fmt_write)
+//! - make fmt to fmt_advanced with optional args and remove fmt_write and fmt_advanced
+//! - better naming for macros
 //! - reduce repetition in fmt structs (no unit struct, just field struct with no fields)
 //! - better name for fmt structs (FmtTemp etc...)
 //! - colours and styling (ascii only, no win7 (win10 is almost obsolete, so win7 definitely not worth it either, also no devs use win7))
