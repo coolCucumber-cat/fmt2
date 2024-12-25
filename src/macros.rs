@@ -722,6 +722,9 @@ macro_rules! fmt_advanced {
 	{ { &self : $ty:ty = $value:expr } => $($tt:tt)* } => {{
 		$crate::fmt_advanced! { { &_self : $ty = $value } => $($tt)* }
 	}};
+	{ { $(&)? $name:ident : Self = $value:expr } => $($tt:tt)* } => {{
+		compile_error!("not allowed to use type `Self`. please specify the concrete type.");
+	}};
 	{ { &$name:ident : $ty:ty = $value:expr } => $($tt:tt)* } => {{
 		struct W($ty);
 
