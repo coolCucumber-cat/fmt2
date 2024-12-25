@@ -31,7 +31,7 @@ macro_rules! get_write_to_from_fmt_args {
         use $crate::write_to::FmtHex as _;
 		$value.fmt_hex()
     }};
-    { $value:expr; std} => {{
+    { $value:expr; std } => {{
         use $crate::write_to::FmtStdDisplay as _;
 		$value.fmt_std_display()
     }};
@@ -54,7 +54,7 @@ macro_rules! write_fmt_single_internal {
 	($writer:expr => { $value:expr; $($fmt_args:tt)* } => $handle_result:path $(=> $label:lifetime)?) => {{
 		use $crate::write::Write as _;
 		$handle_result!(
-			($writer).write_without_flush_hint_(
+			($writer).write_advanced::<_, false, false>(
 				$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
 			)
 			$(, $label)?
@@ -385,33 +385,6 @@ macro_rules! fmt_internal {
 
 	// terminate recursion
 
-	// declare the functions needed for the trait, nothing else
-	{
-		input: {},
-		output: {
-			$(internal $internal0:tt,)*
-			$(
-				external {
-					$field_name:ident,
-					generic: $($generic:ident)?,
-					ty: $($ty:ty)?,
-					= $value:expr;
-					$fmt_args:tt
-				},
-				$(internal $internal:tt,)*
-			)*
-		},
-		args: {
-			write_to_fn_name: $write_to_fn_name:ident,
-		}
-	} => {
-		$crate::impl_for_write_to_with_fn_name_internal! {
-			$write_to_fn_name:
-			$(internal $internal0,)*
-			$(external { $field_name; $fmt_args }, $(internal $internal,)*)*
-		}
-	};
-
 	// nothing (empty string)
 	{
 		input: {},
@@ -474,28 +447,28 @@ macro_rules! fmt_internal {
 	};
 
 	// at least one non-capturing expression, no capturing expressions, any amount of literals (but not one non-capturing, WriteTo expression because it's already covered)
-	{
-		input: {},
-		output: { $(internal $internal:tt,)+ },
-		args: {
-			lifetime: $lifetime:lifetime,
-			optional_lifetime: $($optional_lifetime:lifetime)?,
-			reference: { $($reference:tt)? },
-		}
-	} => {$($reference)? {
-		struct W;
-
-		impl $crate::write_to::WriteTo for W {
-			$crate::impl_for_write_to_internal! { $(internal $internal,)+ }
-		}
-
-		W
-	}};
+// 	{
+// 		input: {},
+// 		output: { $(internal $internal:tt,)+ },
+// 		args: {
+// 			lifetime: $lifetime:lifetime,
+// 			optional_lifetime: $($optional_lifetime:lifetime)?,
+// 			reference: { $($reference:tt)? },
+// 		}
+// 	} => {$($reference)? {
+// 		struct W;
+//
+// 		impl $crate::write_to::WriteTo for W {
+// 			$crate::impl_for_write_to_internal! { $(internal $internal,)+ }
+// 		}
+//
+// 		W
+// 	}};
 
 	// combination of sources (excluding ones that are already covered above) and where the capturing values all have concrete types
 	{
 		input: {},
-		output: { $(internal $internal0:tt,)* $(external { $field_name:ident, generic: , ty: $ty:ty, = $value:expr; $fmt_args:tt }, $(internal $internal:tt,)*)+ },
+		output: { $(internal $internal0:tt,)* $(external { $field_name:ident, generic: , ty: $ty:ty, = $value:expr; $fmt_args:tt }, $(internal $internal:tt,)*)* },
 		args: {
 			lifetime: $lifetime:lifetime,
 			optional_lifetime: $($optional_lifetime:lifetime)?,
@@ -504,14 +477,14 @@ macro_rules! fmt_internal {
 	} => {$($reference)? {
 		#[allow(non_camel_case_types)]
 		struct W<$($optional_lifetime)?> {
-			$($field_name : $ty ),+
+			$($field_name : $ty),*
 		}
 
 		#[allow(non_camel_case_types)]
 		impl<$($optional_lifetime)?> $crate::write_to::WriteTo for W<$($optional_lifetime)?> {
 			$crate::impl_for_write_to_internal! {
 				$(internal $internal0,)*
-				$(external { $field_name; $fmt_args }, $(internal $internal,)*)+
+				$(external { $field_name; $fmt_args }, $(internal $internal,)*)*
 			}
 		}
 
@@ -533,7 +506,7 @@ macro_rules! fmt_internal {
 					$fmt_args:tt
 				},
 				$(internal $internal:tt,)*
-			)+
+			)*
 		},
 		args: {
 			lifetime: $lifetime:lifetime,
@@ -549,7 +522,7 @@ macro_rules! fmt_internal {
 
 		#[allow(non_camel_case_types)]
 		struct W<$lifetime, $($($generic : $crate::write_to::WriteTo + ?Sized, )?)+> {
-			$($field_name : $(&$lifetime $generic)? $($ty)? ),+
+			$($field_name : $(&$lifetime $generic)? $($ty)? ),*
 		}
 
 		#[allow(non_camel_case_types)]
@@ -755,13 +728,13 @@ macro_rules! fmt_advanced {
 			}
 		}
 
-		impl WriteTo for W {
+		impl $crate::write_to::WriteTo for W {
 			fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
 			where
 				W: $crate::write::Write + ?Sized,
 			{
 				let $name: &$ty = &self.0;
-				write_fmt!(? writer => $($tt)*)
+				fmt_write!(? writer => $($tt)*)
 			}
 		}
 
@@ -817,14 +790,7 @@ macro_rules! fmt {
 }
 
 #[macro_export]
-macro_rules! fmt_no_ref {
-	($($tt:tt)*) => {
-		$crate::fmt_advanced!({} => $($tt)*)
-	};
-}
-
-#[macro_export]
-macro_rules! write_fmt {
+macro_rules! fmt_write {
 	(# => $($tt:tt)*) => {
 		$crate::fmt_advanced!((#) => $($tt)*)
 	};
@@ -880,31 +846,6 @@ macro_rules! fmt_tuple_struct {
 macro_rules! fmt_unit_struct {
     ($name:ident) => {
         stringify!($name)
-    };
-}
-
-// TODO: return closure
-#[macro_export]
-macro_rules! fmt_fn {
-    () => {};
-}
-
-#[macro_export]
-macro_rules! default_token {
-    ($value:expr, $default:expr) => {
-        $value
-    };
-
-    (, $default:expr) => {
-        $default
-    };
-
-    ($value:expr, $default:ty) => {
-        $value
-    };
-
-    (, $default:ty) => {
-        $default
     };
 }
 
@@ -1000,7 +941,7 @@ pub fn test() {
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt_no_ref!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt_advanced!({} => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");

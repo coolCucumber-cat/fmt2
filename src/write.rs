@@ -3,6 +3,8 @@ use crate::write_to::WriteTo;
 pub trait Write {
     type Error;
 
+    const IS_LINE_BUFFERED: bool;
+
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error>;
 
     #[inline]
@@ -12,21 +14,31 @@ pub trait Write {
     }
 
     #[inline]
-    fn write<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
+    fn write_advanced<WT, const FLUSH: bool, const NEWLINE: bool>(
+        &mut self,
+        wt: &WT,
+    ) -> Result<(), Self::Error>
     where
         WT: WriteTo + ?Sized,
     {
-        self.write_without_flush_hint_(wt)?;
-        self.flush_hint();
+        wt.write_to(self)?;
+        if NEWLINE {
+            self.write_newline()?;
+        }
+        // if a newline is the last thing written to a life buffered writer, it's already flushed.
+        // only flush if we want to flush and if it isnt already confirmed to be flushed
+        if FLUSH && !(Self::IS_LINE_BUFFERED && (NEWLINE || WT::ENDS_IN_NEWLINE)) {
+            self.flush_hint();
+        }
         Ok(())
     }
 
     #[inline]
-    fn write_without_flush_hint_<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
+    fn write<WT>(&mut self, wt: &WT) -> Result<(), Self::Error>
     where
         WT: WriteTo + ?Sized,
     {
-        wt.write_to(self)
+        self.write_advanced::<WT, true, false>(wt)
     }
 
     #[inline]
@@ -34,10 +46,7 @@ pub trait Write {
     where
         WT: WriteTo + ?Sized,
     {
-        self.write_without_flush_hint_(wt)?;
-        self.write_newline()?;
-        self.flush_hint_after_newline();
-        Ok(())
+        self.write_advanced::<WT, true, true>(wt)
     }
 
     #[inline]
@@ -49,6 +58,9 @@ pub trait Write {
     fn write_newline(&mut self) -> Result<(), Self::Error> {
         self.write_str("\n")
     }
+
+    #[inline]
+    fn flush_hint(&mut self) {}
 
     #[inline]
     fn write_std_display<D>(&mut self, d: &D) -> Result<(), Self::Error>
@@ -116,14 +128,6 @@ pub trait Write {
         } else {
             self.std_write_adapter(|w| core::fmt::write(w, *args))
         }
-    }
-
-    #[inline]
-    fn flush_hint(&mut self) {}
-
-    #[inline]
-    fn flush_hint_after_newline(&mut self) {
-        self.flush_hint();
     }
 
     #[inline]
@@ -218,6 +222,8 @@ where
 {
     type Error = !;
 
+    const IS_LINE_BUFFERED: bool = false;
+
     #[inline]
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
         self.write_str_infallible(s);
@@ -227,6 +233,8 @@ where
 
 impl Write for core::fmt::Formatter<'_> {
     type Error = core::fmt::Error;
+
+    const IS_LINE_BUFFERED: bool = false;
 
     #[inline]
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
@@ -315,6 +323,8 @@ macro_rules! impl_write_flush_for_io_write {
 			impl $crate::write::Write for $ty {
 				type Error = ::std::io::Error;
 
+                const IS_LINE_BUFFERED: bool = true;
+
 				#[inline]
 				fn write_str(&mut self, s: &str) -> ::core::result::Result<(), Self::Error> {
 					::std::io::Write::write_all(self, s.as_bytes())
@@ -324,9 +334,6 @@ macro_rules! impl_write_flush_for_io_write {
                 fn flush_hint(&mut self) {
                     let _ = $crate::write::Flush::flush(self);
                 }
-
-                #[inline]
-                fn flush_hint_after_newline(&mut self) {}
 			}
 
 			impl $crate::write::Flush for $ty {
