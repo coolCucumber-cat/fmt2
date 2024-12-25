@@ -719,6 +719,9 @@ macro_rules! fmt_advanced {
 	{ { &$name:ident : $ty:ty } => $($tt:tt)* } => {
 		$crate::fmt_advanced! { { &$name : $ty = $name} => $($tt)* }
 	};
+	{ { &self : $ty:ty = $value:expr } => $($tt:tt)* } => {{
+		$crate::fmt_advanced! { { &_self : $ty = $value } => $($tt)* }
+	}};
 	{ { &$name:ident : $ty:ty = $value:expr } => $($tt:tt)* } => {{
 		struct W($ty);
 
