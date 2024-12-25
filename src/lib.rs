@@ -10,7 +10,7 @@
 //! - git and github
 //! - reduce repetetion use good style and techniques. more macro recursion instead of repetition
 //! - reduce repetition by avoiding polishing work at start (move all resposibility to fmt_write)
-//! - make fmt to fmt_advanced with optional args and remove fmt_write and fmt_advanced
+//! - make fmt to fmt_advanced with optional args
 //! - better naming for macros
 //! - reduce repetition in fmt structs (no unit struct, just field struct with no fields)
 //! - better name for fmt structs (FmtTemp etc...)
