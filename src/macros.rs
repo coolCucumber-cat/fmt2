@@ -550,7 +550,7 @@ macro_rules! fmt_internal {
 
 #[macro_export]
 #[doc(hidden)]
-macro_rules! write_fmt_internal {
+macro_rules! fmt_write_internal {
 	// do recursion
 
 	// literal
@@ -559,7 +559,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { [$($($prev, )*)* $literal], $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -571,7 +571,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { [$($($prev, )*)* "\n"], $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -583,7 +583,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { [$($($prev, )*)* $literal], $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -595,7 +595,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -607,7 +607,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { [$($literal1, )* $($literal2),*], $($inputs, )* },
 			output: { $($outputs)* },
 			args: $args
@@ -619,7 +619,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)* [$($literal, )*], },
 			args: $args
@@ -631,7 +631,7 @@ macro_rules! write_fmt_internal {
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { $($inputs, )* },
 			output: { $($outputs)*
 				{ $value; $($($fmt_args)*)? },
@@ -693,7 +693,7 @@ macro_rules! write_fmt_internal {
 }
 
 #[macro_export]
-macro_rules! fmt_advanced {
+macro_rules! fmt {
 	{ { & } => $($tt:tt)* } => {
 		$crate::fmt_internal! {
 			input: { $($tt, )* },
@@ -717,10 +717,10 @@ macro_rules! fmt_advanced {
 		}
 	};
 	{ { &$name:ident : $ty:ty } => $($tt:tt)* } => {
-		$crate::fmt_advanced! { { &$name : $ty = $name} => $($tt)* }
+		$crate::fmt! { { &$name : $ty = $name} => $($tt)* }
 	};
-	{ { &self : $ty:ty = $value:expr } => $($tt:tt)* } => {{
-		$crate::fmt_advanced! { { &_self : $ty = $value } => $($tt)* }
+	{ { $(&)? self : $ty:ty = $value:expr } => $($tt:tt)* } => {{
+		compile_error!("not allowed to use name `self`. please specify a different name, such as `_self`")
 	}};
 	{ { $(&)? $name:ident : Self = $value:expr } => $($tt:tt)* } => {{
 		compile_error!("not allowed to use type `Self`. please specify the concrete type.");
@@ -728,46 +728,37 @@ macro_rules! fmt_advanced {
 	{ { &$name:ident : $ty:ty = $value:expr } => $($tt:tt)* } => {{
 		struct W($ty);
 
-		impl W {
-			fn new(t: &$ty) -> &Self {
-				unsafe { &*(t as *const $ty as *const Self) }
-			}
-		}
-
 		impl $crate::write_to::WriteTo for W {
 			fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
 			where
-				W: $crate::write::Write + ?Sized,
+			W: $crate::write::Write + ?Sized,
 			{
 				let $name: &$ty = &self.0;
-				fmt_write!(? writer => $($tt)*)
+				$crate::fmt!((? writer) => $($tt)*)
 			}
 		}
 
-		W::new($value)
+		#[inline]
+		fn new(t: &$ty) -> &impl $crate::write_to::WriteTo {
+			unsafe { &*(t as *const $ty as *const W) }
+		}
+
+		new($value)
 	}};
 	{ (? #) => $($tt:tt)* } => {
-		$crate::write_fmt_internal! {
-			input: { $($tt, )* },
-			output: {},
-			args: {
-				writer: (::std::io::stdout()),
-				ignore_err: false,
-			}
-		}
+		$crate::fmt! { (? ::std::io::stdout()) => $($tt)* }
 	};
 	{ (#) => $($tt:tt)* } => {
-		$crate::write_fmt_internal! {
-			input: { $($tt, )* },
-			output: {},
-			args: {
-				writer: (::std::io::stdout()),
-				ignore_err: true,
-			}
-		}
+		$crate::fmt! { (::std::io::stdout()) => $($tt)* }
+	};
+	{ (? #err) => $($tt:tt)* } => {
+		$crate::fmt! { (? ::std::io::stderr()) => $($tt)* }
+	};
+	{ (#err) => $($tt:tt)* } => {
+		$crate::fmt! { (::std::io::stderr()) => $($tt)* }
 	};
 	{ (? $writer:expr) => $($tt:tt)* } => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { $($tt, )* },
 			output: {},
 			args: {
@@ -777,7 +768,7 @@ macro_rules! fmt_advanced {
 		}
 	};
 	{ ($writer:expr) => $($tt:tt)* } => {
-		$crate::write_fmt_internal! {
+		$crate::fmt_write_internal! {
 			input: { $($tt, )* },
 			output: {},
 			args: {
@@ -789,62 +780,39 @@ macro_rules! fmt_advanced {
 }
 
 #[macro_export]
-macro_rules! fmt {
-	($($tt:tt)*) => {
-		$crate::fmt_advanced!({ & } => $($tt)*)
-	};
-}
-
-#[macro_export]
-macro_rules! fmt_write {
-	(# => $($tt:tt)*) => {
-		$crate::fmt_advanced!((#) => $($tt)*)
-	};
-	(? # => $($tt:tt)*) => {
-		$crate::fmt_advanced!((? #) => $($tt)*)
-	};
-	($writer:expr => $($tt:tt)*) => {
-		$crate::fmt_advanced!(($writer) => $($tt)*)
-	};
-	(? $writer:expr => $($tt:tt)*) => {
-		$crate::fmt_advanced!((? $writer) => $($tt)*)
-	};
-}
-
-#[macro_export]
 macro_rules! fmt_struct {
 	($fmt:tt => $name:ident; { $field0:ident : $tt0:tt $(, $field:ident : $tt:tt)* $(,)? }) => {
-		$crate::fmt_advanced! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " $tt0 $(", " [stringify!($field)] ": " $tt)* " }" }
+		$crate::fmt! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " $tt0 $(", " [stringify!($field)] ": " $tt)* " }" }
 	};
 
 	($fmt:tt => $name:ident; { $field0:ident $(, $field:ident)* $(,)? }) => {
-		$crate::fmt_advanced! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " {$field0} $(", " [stringify!($field)] ": " {$field})* " }" }
+		$crate::fmt! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " {$field0} $(", " [stringify!($field)] ": " {$field})* " }" }
 	};
 
 	($fmt:tt => $name:ident; {}) => {
-		$crate::fmt_advanced! { $fmt => [stringify!($name)] " {}" }
+		$crate::fmt! { $fmt => [stringify!($name)] " {}" }
 	};
 }
 
 #[macro_export]
 macro_rules! fmt_struct_debug {
 	($fmt:tt => $name:ident; { $field0:ident $(, $field:ident)* $(,)? }) => {
-		$crate::fmt_advanced! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " {$field0;?} $(", " [stringify!($field)] ": " {$field;?})* " }" }
+		$crate::fmt! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " {$field0;?} $(", " [stringify!($field)] ": " {$field;?})* " }" }
 	};
 
 	($fmt:tt => $name:ident; {}) => {
-		$crate::fmt_advanced! { $fmt => [stringify!($name)] " {}" }
+		$crate::fmt! { $fmt => [stringify!($name)] " {}" }
 	};
 }
 
 #[macro_export]
 macro_rules! fmt_tuple_struct {
 	($fmt:tt => $($name:ident;)? ($tt0:tt $(, $tt:tt)* $(,)?) ) => {
-		$crate::fmt_advanced! { $fmt => $([stringify!($name)])? "(" $tt0 $(", " $tt)* ")" }
+		$crate::fmt! { $fmt => $([stringify!($name)])? "(" $tt0 $(", " $tt)* ")" }
 	};
 
 	($fmt:tt => $($name:ident;)? () ) => {
-		$crate::fmt_advanced! { $fmt => $([stringify!($name)])? "()" }
+		$crate::fmt! { $fmt => $([stringify!($name)])? "()" }
 	};
 }
 
@@ -881,13 +849,13 @@ pub fn test() {
 
     impl Fmt for Struct {
         fn fmt(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
-            fmt_advanced!({ &s: Struct = self} => "a = " {s.a} ", b = " {s.b})
+            fmt!({ &s: Struct = self} => "a = " {s.a} ", b = " {s.b})
         }
     }
 
     impl FmtDebug for Struct {
         fn fmt_debug(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
-            fmt_struct!({ &s: Struct = self } => Struct; { a: {s.a}, b: {s.b} })
+            fmt_struct!({ &_self: Struct = self } => Struct; { a: {_self.a}, b: {_self.b} })
         }
     }
 
@@ -917,91 +885,91 @@ pub fn test() {
     }
 
     let a = "abc";
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut *String::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = String::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &String::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt_advanced!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a: Box<str> = Box::from("abc");
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &3_i32;
-    let s = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
-    let w = fmt!("123" [xyz!()] "abc" {a} "abc");
+    let w = fmt!({ & } => "123" [xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(w);
     assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
-    let w = fmt!("123" [xyz!()] "abc" {a: i32} "abc");
+    let w = fmt!({ & } => "123" [xyz!()] "abc" {a: i32} "abc");
     let s0 = ToString::to_string(w);
     assert_eq!(s0, "123XYZabc3abc");
 
-    const _S: &str = fmt!("123" [xyz!()] "abc" "abc" 123);
+    const _S: &str = fmt!({ & } => "123" [xyz!()] "abc" "abc" 123);
     assert_eq!(_S, "123XYZabcabc123");
 
     let a = 3_i32;
     const I: i32 = 32;
-    let s = fmt!("123" [xyz!()] "abc" {a} "123" (I) "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a} "123" (I) "abc");
     let s0 = ToString::to_string(s);
 
     let a = 3_i32;
-    let s = fmt!("123" [xyz!()] "abc" {a;?} "123" (I;?) "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a;?} "123" (I;?) "abc");
     let s0 = ToString::to_string(s);
 
     let a = 3_i32;
-    let s = fmt!("123" [xyz!()] "abc" {a;h} "123" (I;b) "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" {a;h} "123" (I;b) "abc");
     let s0 = ToString::to_string(s);
 
     let a = 12.1234_f32;
     const F: f32 = 12.1234;
-    let s = fmt!("999" [xyz!()] "abc" {a;} "abc" (F;) "abc");
+    let s = fmt!({ & } => "999" [xyz!()] "abc" {a;} "abc" (F;) "abc");
     let s0 = ToString::to_string(s);
     // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
-    let s = fmt!("123" [xyz!()] "abc" (&I) "abc" {d = 456});
+    let s = fmt!({ & } => "123" [xyz!()] "abc" (&I) "abc" {d = 456});
     let s0 = ToString::to_string(s);
 
-    let s = fmt!("123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
-    // let s = fmt!("123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
+    let s = fmt!({ & } => "123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
+    // let s = fmt!({ & } => "123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
     let s0 = ToString::to_string(s);
 }
