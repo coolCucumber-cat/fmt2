@@ -15,6 +15,8 @@
 //! - reduce repetition in fmt structs (no unit struct, just field struct with no fields)
 //! - better name for fmt structs (FmtTemp etc...)
 //! - colours and styling (ascii only, no win7 (win10 is almost obsolete, so win7 definitely not worth it either, also no devs use win7))
+//! - manage error handling outside of write_fmt_single instead of inside macro
+//! - make fmt do everything, including write and generate
 
 #![expect(internal_features)]
 #![feature(

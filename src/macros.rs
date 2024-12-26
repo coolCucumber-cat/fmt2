@@ -190,7 +190,6 @@ macro_rules! impl_for_write_to_internal {
 		fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
 			where
 				W: $crate::write::Write + ?Sized {
-
 			$crate::fn_write_to_internal!(
 				w =>
 				$($internal0)*
