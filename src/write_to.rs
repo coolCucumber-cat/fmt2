@@ -29,25 +29,25 @@ where
 
 #[macro_export]
 macro_rules! declare_write_to_wrapper_struct_internal {
-    { $($Struct:ident $Trait:ident $fn:ident),* $(,)? } => {
+    { $($Struct:ident $(<$(const $CONST:ident : $ConstType:ty),* $(,)?>)? $Trait:ident $fn:ident),* $(,)? } => {
         $(
-            pub struct $Struct<T>(T)
+            pub struct $Struct<T $($(, const $CONST: $ConstType)*)?>(T)
             where
                 T: ?Sized,
                 Self: $crate::write_to::WriteTo;
 
-            pub trait $Trait {
+            pub trait $Trait $(<$(const $CONST: $ConstType),*>)? {
                 fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
             }
 
-            impl<T> $Trait for T
+            impl<T $($(, const $CONST: $ConstType)*)?> $Trait $(<$($CONST),*>)? for T
             where
                 T: ?Sized,
-                $Struct<T>: $crate::write_to::WriteTo,
+                $Struct<T $($(, { $CONST })*)?>: $crate::write_to::WriteTo,
             {
                 #[inline]
                 fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
-                    unsafe { &*(self as *const Self as *const $Struct<Self>) }
+                    unsafe { &*(self as *const Self as *const $Struct<Self $($(, $CONST)*)?>) }
                 }
             }
         )*
@@ -93,6 +93,21 @@ declare_write_to_wrapper_struct_internal! {
     Binary  FmtBinary   fmt_binary,
     Octal   FmtOctal    fmt_octal,
     Hex     FmtHex      fmt_hex,
+    Precision<const PRECISION: u8> FmtPrecision fmt_precision,
+}
+
+pub trait FmtPrecisionInternal<const PRECISION: u8>: FmtPrecision<PRECISION> {
+    fn fmt_precision_internal(&self) -> &Self;
+}
+
+impl<T, const PRECISION: u8> FmtPrecisionInternal<PRECISION> for T
+where
+    T: FmtPrecision<PRECISION>,
+{
+    #[inline]
+    fn fmt_precision_internal(&self) -> &Self {
+        self
+    }
 }
 
 declare_std_write_to_wrapper_struct_internal! {
