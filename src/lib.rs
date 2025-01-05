@@ -32,6 +32,7 @@
 )]
 pub mod macros;
 pub mod str;
+pub mod style;
 pub mod utils;
 pub mod write;
 pub mod write_to;
