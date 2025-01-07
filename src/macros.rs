@@ -6,10 +6,6 @@ macro_rules! get_write_to_from_fmt_args {
 	{ $value:expr; noderef } => {
 		$value
 	};
-    { $value:expr; trait $tr:path } => {{
-        use $tr as _;
-		$value.fmt_internal()
-    }};
     { $value:expr; } => {{
         use $crate::write_to::Fmt as _;
 		$value.fmt()
@@ -355,7 +351,7 @@ macro_rules! fmt_internal {
 			$(
 				::core::stringify!($inputs), "\n"
 			),*
-		));
+		))
 	};
 
 	// endregion
@@ -399,6 +395,7 @@ macro_rules! fmt_internal {
 					break 'block;
 				}
 			)*
+			// TODO: flush hint
 		}
 	};
 
@@ -644,158 +641,6 @@ macro_rules! fmt_internal {
 }
 
 #[macro_export]
-#[doc(hidden)]
-macro_rules! fmt_write_internal {
-	// do recursion
-
-	// literal
-	{
-		input: { $([$($prev:expr),* $(,)?], )* $literal:literal, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { [$($($prev, )*)* $literal], $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// ln
-	{
-		input: { $([$($prev:expr),* $(,)?], )* ln, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { [$($($prev, )*)* "\n"], $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// literal in an expression (make it literal)
-	{
-		input: { $([$($prev:expr),* $(,)?], )* { $literal:literal $(;)? }, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { [$($($prev, )*)* $literal], $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// empty group of literals
-	{
-		input: { [$(""),* $(,)?], $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// 2 groups of literals
-	{
-		input: { [$($literal1:expr),* $(,)?], [$($literal2:expr),* $(,)?], $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { [$($literal1, )* $($literal2),*], $($inputs, )* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// literals
-	{
-		input: { [$($literal:expr),* $(,)?], $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)* [$($literal, )*], },
-			args: $args
-		}
-	};
-	// expression
-	{
-		input: { { $value:expr $(; $($fmt_args:tt)*)? }, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_write_internal! {
-			input: { $($inputs, )* },
-			output: { $($outputs)*
-				{ $value; $($($fmt_args)*)? },
-			},
-			args: $args
-		}
-	};
-
-	// error (macros must be in square brackets)
-	{
-		input: { $name:ident!$tt:tt, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {{
-		::core::compile_error!(::core::concat!(
-			"macros must be in [square brackets]\n",
-			::core::stringify!($name), "!", ::core::stringify!($tt),
-		));
-	}};
-	// error
-	{
-		input: { $tt:tt, $($inputs:tt, )* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {{
-		::core::compile_error!(::core::concat!(
-			"expressions must be either valid literals or in {curly} or [square] brackets\n",
-			"see documentation for the `write_fmt` macro\n",
-			::core::stringify!($tt),
-		));
-	}};
-
-	// terminate recursion
-	{
-		input: {},
-		output: { $($fmt:tt,)* },
-		args: {
-			writer: $writer:expr,
-			ignore_err: false,
-		}
-	} => {
-		'block: {
-			$(
-				if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!($writer => $fmt) {
-					break 'block ::core::result::Result::Err(err);
-				}
-			)*
-			::core::result::Result::Ok(())
-		}
-	};
-	{
-		input: {},
-		output: { $($fmt:tt,)* },
-		args: {
-			writer: $writer:expr,
-			ignore_err: true,
-		}
-	} => {
-		'block: {
-			$(
-				if let ::core::result::Result::Err(_) = $crate::write_fmt_single_internal!($writer => $fmt) {
-					break 'block;
-				}
-			)*
-		}
-	};
-}
-
-#[macro_export]
 macro_rules! fmt {
 	{ {} => $($tt:tt)* } => {
 		$crate::fmt_internal! {
@@ -851,23 +696,39 @@ macro_rules! fmt {
 	{ (#err) => $($tt:tt)* } => {
 		$crate::fmt! { (::std::io::stderr()) => $($tt)* }
 	};
+	{ (? # lock) => $($tt:tt)* } => {
+		$crate::fmt! { (? ::std::io::stdout().lock_TODO()) => $($tt)* }
+	};
+	{ (# lock) => $($tt:tt)* } => {
+		$crate::fmt! { (::std::io::stdout().lock_TODO()) => $($tt)* }
+	};
+	{ (? #err lock) => $($tt:tt)* } => {
+		$crate::fmt! { (? ::std::io::stderr().lock_TODO()) => $($tt)* }
+	};
+	{ (#err lock) => $($tt:tt)* } => {
+		$crate::fmt! { (::std::io::stderr().lock_TODO()) => $($tt)* }
+	};
 	{ (? $writer:expr) => $($tt:tt)* } => {
-		$crate::fmt_write_internal! {
-			input: { $($tt, )* },
+		$crate::fmt_internal! {
+			input: { $($tt)* },
 			output: {},
 			args: {
-				writer: $writer,
-				ignore_err: false,
+				mode: nocapture write {
+					writer: $writer,
+					ignore_err: false,
+				}
 			}
 		}
 	};
 	{ ($writer:expr) => $($tt:tt)* } => {
-		$crate::fmt_write_internal! {
-			input: { $($tt, )* },
+		$crate::fmt_internal! {
+			input: { $($tt)* },
 			output: {},
 			args: {
-				writer: $writer,
-				ignore_err: true,
+				mode: nocapture write {
+					writer: $writer,
+					ignore_err: true,
+				}
 			}
 		}
 	};
