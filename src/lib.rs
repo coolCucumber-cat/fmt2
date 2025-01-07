@@ -17,6 +17,10 @@
 //! - colours and styling (ascii only, no win7 (win10 is almost obsolete, so win7 definitely not worth it either, also no devs use win7))
 //! - manage error handling outside of write_fmt_single instead of inside macro
 //! - make fmt do everything, including write and generate
+//! - flush hint in write
+//! - custom fmtable with closure
+//! - put all styling in fmt macro
+//! - lock stdout and stderr
 
 #![expect(internal_features)]
 #![feature(
