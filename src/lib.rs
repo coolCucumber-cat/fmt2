@@ -32,7 +32,8 @@
     try_blocks,
     // specialization,
     // min_specialization,
-    associated_type_defaults
+    associated_type_defaults,
+    impl_trait_in_assoc_type
 )]
 pub mod macros;
 pub mod str;
