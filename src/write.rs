@@ -103,12 +103,12 @@ pub trait Write {
     }
 
     #[inline]
-    fn write_std_precision<D>(&mut self, d: &D, precision: Option<usize>) -> Result<(), Self::Error>
+    fn write_std_precision<D, const PRECISION: u8>(&mut self, d: &D) -> Result<(), Self::Error>
     where
         D: core::fmt::Display + ?Sized,
     {
         let mut options = core::fmt::FormattingOptions::new();
-        options.precision(precision);
+        options.precision(Some(PRECISION as usize));
         self.std_formatter_with_options_adapter(options, |f| d.fmt(f))
     }
 
