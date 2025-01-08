@@ -27,42 +27,6 @@ where
     }
 }
 
-pub trait FmtAdvanced {
-    type Target: WriteTo + ?Sized;
-    fn fmt_advanced(&self) -> &(impl WriteTo + ?Sized);
-}
-
-impl<T> FmtAdvanced for T
-where
-    T: WriteTo + ?Sized,
-{
-    type Target = Self;
-    #[inline]
-    fn fmt_advanced(&self) -> &Self::Target {
-        self
-    }
-}
-
-// pub trait FmtAdvancedWithTarget<W>
-// where
-//     W: Write + ?Sized,
-// {
-//     type Target: WriteToFor<W> + ?Sized;
-//     fn fmt_advanced_with_target(&self) -> &Self::Target;
-// }
-//
-// impl<W, T> FmtAdvancedWithTarget<W> for T
-// where
-//     T: WriteTo + ?Sized,
-//     W: Write + ?Sized,
-// {
-//     type Target = Self;
-//     #[inline]
-//     fn fmt_advanced_with_target(&self) -> &Self::Target {
-//         self
-//     }
-// }
-
 macro_rules! declare_write_to_wrapper_struct_internal {
     { $($Struct:ident $(<$(const $CONST:ident : $ConstType:ty),* $(,)?>)? $Trait:ident $fn:ident),* $(,)? } => {
         $(
