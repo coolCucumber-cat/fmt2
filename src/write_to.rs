@@ -64,7 +64,7 @@ where
 // }
 
 macro_rules! declare_write_to_wrapper_struct_internal {
-    { $($Struct:ident $(<$(const $CONST:ident : $ConstType:ty),* $(,)?>)? $Trait:ident $fn:ident $TraitAdvanced:ident $fn_advanced:ident),* $(,)? } => {
+    { $($Struct:ident $(<$(const $CONST:ident : $ConstType:ty),* $(,)?>)? $Trait:ident $fn:ident),* $(,)? } => {
         $(
             pub struct $Struct<T $($(, const $CONST: $ConstType)*)?>(T)
             where
@@ -85,32 +85,14 @@ macro_rules! declare_write_to_wrapper_struct_internal {
                     unsafe { &*(self as *const Self as *const $Struct<Self $($(, $CONST)*)?>) }
                 }
             }
-
-            pub trait $TraitAdvanced $(<$(const $CONST: $ConstType),*>)? {
-                type Target: $crate::write_to::WriteTo + ?Sized;
-                fn $fn_advanced(&self) -> &Self::Target;
-            }
-
-            impl<T $($(, const $CONST: $ConstType)*)?> $TraitAdvanced $(<$($CONST),*>)? for T
-            where
-                T: $Trait $(<$({ $CONST }),*>)? + ?Sized,
-                // T: ?Sized,
-                // $Struct<T $($(, { $CONST })*)?>: $Trait,
-            {
-                type Target = impl $crate::write_to::WriteTo + ?Sized;
-                #[inline]
-                fn $fn_advanced(&self) -> &Self::Target {
-                    $Trait $(::<$({ $CONST }),*>)? ::$fn(self)
-                }
-            }
         )*
     };
 }
 
 macro_rules! declare_std_write_to_wrapper_struct_internal {
-    { $($Struct:ident $Trait:ident $fn:ident $TraitAdvanced:ident $fn_advanced:ident => $StdTrait:ident $write_fn:ident),* $(,)? } => {
+    { $($Struct:ident $Trait:ident $fn:ident => $StdTrait:ident $write_fn:ident),* $(,)? } => {
         $(
-            declare_write_to_wrapper_struct_internal! { $Struct $Trait $fn $TraitAdvanced $fn_advanced }
+            declare_write_to_wrapper_struct_internal! { $Struct $Trait $fn }
 
             impl<T> $crate::write_to::WriteTo for $Struct<T>
             where
@@ -129,12 +111,12 @@ macro_rules! declare_std_write_to_wrapper_struct_internal {
 }
 
 macro_rules! impl_fmt_trait_internal {
-    { $StdFmtTrait:ident $std_fmt_fn:ident => $FmtTrait:ident $fmt_fn:ident => $($ty:ty)*} => {
+    { $StdTrait:ident $std_fn:ident => $Trait:ident $fn:ident => $($ty:ty)*} => {
         $(
-            impl $FmtTrait for $ty {
+            impl $Trait for $ty {
                 #[inline]
-                fn $fmt_fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
-                    $StdFmtTrait::$std_fmt_fn(self)
+                fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
+                    $StdTrait::$std_fn(self)
                 }
             }
         )*
@@ -142,11 +124,11 @@ macro_rules! impl_fmt_trait_internal {
 }
 
 declare_write_to_wrapper_struct_internal! {
-    Debug   FmtDebug    fmt_debug FmtDebugAdvanced    fmt_debug_advanced,
-    Binary  FmtBinary   fmt_binary FmtBinaryAdvanced   fmt_binary_advanced,
-    Octal   FmtOctal    fmt_octal FmtOctalAdvanced    fmt_octal_advanced,
-    Hex     FmtHex      fmt_hex FmtHexAdvanced      fmt_hex_advanced,
-    Precision<const PRECISION: u8> FmtPrecision fmt_precision FmtPrecisionAdvanced fmt_precision_advanced,
+    Debug   FmtDebug    fmt_debug,
+    Binary  FmtBinary   fmt_binary,
+    Octal   FmtOctal    fmt_octal,
+    Hex     FmtHex      fmt_hex,
+    Precision<const PRECISION: u8> FmtPrecision fmt_precision,
 }
 
 // pub trait FmtPrecisionInternal<const PRECISION: u8>: FmtPrecision<PRECISION> {
@@ -164,11 +146,11 @@ declare_write_to_wrapper_struct_internal! {
 // }
 
 declare_std_write_to_wrapper_struct_internal! {
-    StdDisplay  FmtStdDisplay   fmt_std_display FmtStdDisplayAdvanced   fmt_std_display_advanced => Display  write_std_display,
-    StdDebug    FmtStdDebug     fmt_std_debug   FmtStdDebugAdvanced     fmt_std_debug_advanced   => Debug    write_std_debug,
-    StdBinary   FmtStdBinary    fmt_std_binary  FmtStdBinaryAdvanced    fmt_std_binary_advanced  => Binary   write_std_binary,
-    StdOctal    FmtStdOctal     fmt_std_octal   FmtStdOctalAdvanced     fmt_std_octal_advanced   => Octal    write_std_octal,
-    StdHex      FmtStdHex       fmt_std_hex     FmtStdHexAdvanced       fmt_std_hex_advanced     => UpperHex write_std_upper_hex,
+    StdDisplay  FmtStdDisplay   fmt_std_display => Display  write_std_display,
+    StdDebug    FmtStdDebug     fmt_std_debug   => Debug    write_std_debug,
+    StdBinary   FmtStdBinary    fmt_std_binary  => Binary   write_std_binary,
+    StdOctal    FmtStdOctal     fmt_std_octal   => Octal    write_std_octal,
+    StdHex      FmtStdHex       fmt_std_hex     => UpperHex write_std_upper_hex,
 }
 
 impl_fmt_trait_internal! { FmtStdDisplay    fmt_std_display => Fmt          fmt         => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 }
