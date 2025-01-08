@@ -495,6 +495,36 @@ macro_rules! fmt_internal {
 
 		new($value)
 	}};
+	// (mode = nocapture generate_methods)
+	{
+		input: {},
+		output: { $(internal $fmt:tt)* },
+		args: {
+			mode: nocapture generate_methods {
+				name: $name:ident,
+			}
+		}
+	} => {
+		#[inline]
+		fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
+			where
+				W: $crate::write::Write + ?Sized {
+			let $name = self;
+			$crate::write_fmt_return_internal!(
+				w =>
+				$($fmt)*
+			);
+			::core::result::Result::Ok(())
+		}
+
+		#[inline]
+		fn len_hint(&self) -> usize {
+			let $name = self;
+			$crate::len_hint_fmt_internal!(
+				$($fmt)*
+			)
+		}
+	};
 
 	// one capturing expression (mode = capture write)
 	{
@@ -543,7 +573,7 @@ macro_rules! fmt_internal {
 			#[allow(non_camel_case_types)]
 			impl<$generic : $crate::write_to::WriteTo + ?Sized> $crate::write_to::WriteTo for W<$generic> {
 				#[inline]
-				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
 					where
 						W: $crate::write::Write + ?Sized {
 					$crate::write_fmt_return_internal!(
@@ -606,7 +636,7 @@ macro_rules! fmt_internal {
 			#[allow(non_camel_case_types)]
 			impl<$($optional_lifetime,)? $($($generic : $crate::write_to::WriteTo + ?Sized, )?)*> $crate::write_to::WriteTo for W<$($optional_lifetime,)? $($($generic, )?)*> {
 				#[inline]
-				fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+				fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
 					where
 						W: $crate::write::Write + ?Sized {
 					$crate::write_fmt_return_internal!(
@@ -696,17 +726,17 @@ macro_rules! fmt {
 	{ (#err) => $($tt:tt)* } => {
 		$crate::fmt! { (::std::io::stderr()) => $($tt)* }
 	};
-	{ (? # lock) => $($tt:tt)* } => {
-		$crate::fmt! { (? ::std::io::stdout().lock_TODO()) => $($tt)* }
+	{ (? #lock) => $($tt:tt)* } => {
+		$crate::fmt! { (? std::io::Stdout::lock(&::std::io::stdout())) => $($tt)* }
 	};
-	{ (# lock) => $($tt:tt)* } => {
-		$crate::fmt! { (::std::io::stdout().lock_TODO()) => $($tt)* }
+	{ (#lock) => $($tt:tt)* } => {
+		$crate::fmt! { (std::io::Stdout::lock(&::std::io::stdout())) => $($tt)* }
 	};
 	{ (? #err lock) => $($tt:tt)* } => {
-		$crate::fmt! { (? ::std::io::stderr().lock_TODO()) => $($tt)* }
+		$crate::fmt! { (? std::io::Stdout::lock(&::std::io::stderr())) => $($tt)* }
 	};
 	{ (#err lock) => $($tt:tt)* } => {
-		$crate::fmt! { (::std::io::stderr().lock_TODO()) => $($tt)* }
+		$crate::fmt! { (std::io::Stdout::lock(&::std::io::stderr())) => $($tt)* }
 	};
 	{ (? $writer:expr) => $($tt:tt)* } => {
 		$crate::fmt_internal! {
@@ -732,6 +762,18 @@ macro_rules! fmt {
 			}
 		}
 	};
+	{ [$name:ident] => $($tt:tt)* } => {
+		$crate::fmt_internal! {
+			input: { $($tt)* },
+			output: {},
+			args: {
+				mode: nocapture generate_methods {
+					name: $name,
+				}
+			}
+		}
+
+	}
 }
 
 #[macro_export]

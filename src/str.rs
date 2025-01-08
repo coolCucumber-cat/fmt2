@@ -160,13 +160,26 @@ impl<T, U> Deref for WithStr<T, U> {
 
 #[macro_export]
 macro_rules! impl_const_str_for {
-	{ $($name:path => $value:expr),* $(,)? } => {
+	{ $($ty:ty $(=> $value:expr)?),* $(,)? } => {
 		$(
-			impl $crate::write_to::ConstStr for $name {
-				const CONST_STR: &str = $value;
-			}
-		)*
+            $crate::impl_const_str_for_internal! { $ty $(=> $value)? }
+        )*
 	};
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! impl_const_str_for_internal {
+    { $ty:ty => $value:expr } => {
+        impl $crate::str::ConstStr for $ty {
+            const CONST_STR: &str = $value;
+        }
+    };
+    { $ty:ty } => {
+        impl $crate::str::ConstStr for $ty {
+            const CONST_STR: &str = ::core::stringify!($ty);
+        }
+    };
 }
 
 #[macro_export]
