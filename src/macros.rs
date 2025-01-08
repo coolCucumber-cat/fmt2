@@ -23,15 +23,15 @@ macro_rules! get_write_to_from_fmt_args {
 		$value.fmt_hex()
     }};
     { $value:expr; .$PRECISION:expr } => {{
-        use $crate::write_to::FmtPrecisionInternal as _;
-		$crate::write_to::FmtPrecision::<$PRECISION>::fmt_precision($value.fmt_precision_internal())
+        use $crate::write_to::FmtPrecision as _;
+		$value.fmt_precision::<$PRECISION>()
     }};
     { $value:expr; std } => {{
-        use $crate::write_to::FmtStdDisplay as _;
+		use $crate::write_to::FmtStdDisplay as _;
 		$value.fmt_std_display()
     }};
     { $value:expr; std? } => {{
-        use $crate::write_to::FmtStdDebug as _;
+		use $crate::write_to::FmtStdDebug as _;
 		$value.fmt_std_debug()
     }};
     { $value:expr; std b } => {{
@@ -39,9 +39,13 @@ macro_rules! get_write_to_from_fmt_args {
 		$value.fmt_std_binary()
     }};
     { $value:expr; std h } => {{
-        use $crate::write_to::FmtStdHex as _;
+		use $crate::write_to::FmtStdHex as _;
 		$value.fmt_std_hex()
     }};
+	{ $value:expr; std .$PRECISION:expr } => {{
+		use $crate::write_to::FmtStdPrecision as _;
+		$value.fmt_std_precision::<$PRECISION>()
+	}};
 }
 
 #[macro_export]
@@ -174,14 +178,16 @@ macro_rules! fmt_internal {
 		input: { $([$($prev:expr),* $(,)?])* ($literal:literal $(;)?) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
-			mode: capture $output_mode:tt $args:tt
+			mode: capture $output_mode:tt $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		$crate::fmt_internal! {
 			input: { [$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
 			args: {
-				mode: capture $output_mode $args
+				mode: capture $output_mode $args,
+				$($rest)*
 			}
 		}
 	};
@@ -190,14 +196,16 @@ macro_rules! fmt_internal {
 		input: { $([$($prev:expr),* $(,)?])* { $field_name:ident $(: $ty:ty)? = $literal:literal $(;)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
-			mode: capture $output_mode:tt $args:tt
+			mode: capture $output_mode:tt $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		$crate::fmt_internal! {
 			input: { [$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
 			args: {
-				mode: capture $output_mode $args
+				mode: capture $output_mode $args,
+				$($rest)*
 			}
 		}
 	};
@@ -243,14 +251,16 @@ macro_rules! fmt_internal {
 		input: { ($value:expr $(; $($fmt_args:tt)*)?) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
-			mode: capture $output_mode:tt $args:tt
+			mode: capture $output_mode:tt $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
 			output: { $($outputs)* internal { $value; $($($fmt_args)*)? } },
 			args: {
-				mode: capture $output_mode $args
+				mode: capture $output_mode $args,
+				$($rest)*
 			}
 		}
 	};
@@ -263,7 +273,8 @@ macro_rules! fmt_internal {
 				lifetime: $lifetime:lifetime,
 				optional_lifetime: $($optional_lifetime:lifetime)?,
 				reference: { $($reference:tt)? },
-			}
+			},
+			$($rest:tt)*
 		}
 	} => {
 		$crate::fmt_internal! {
@@ -276,7 +287,8 @@ macro_rules! fmt_internal {
 					lifetime: $lifetime,
 					optional_lifetime: $lifetime,
 					reference: { $($reference)? },
-				}
+				},
+				$($rest)*
 			}
 		}
 	};
@@ -285,7 +297,8 @@ macro_rules! fmt_internal {
 		input: { { $field_name:ident : $ty:ty = $value:expr $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
-			mode: capture $output_mode:tt $args:tt
+			mode: capture $output_mode:tt $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		$crate::fmt_internal! {
@@ -294,7 +307,8 @@ macro_rules! fmt_internal {
 				external { $field_name : $ty = $value; noderef => { $($($fmt_args)*)? } }
 			},
 			args: {
-				mode: capture $output_mode $args
+				mode: capture $output_mode $args,
+				$($rest)*
 			}
 		}
 	};
@@ -303,14 +317,16 @@ macro_rules! fmt_internal {
 		input: { { $field_name:ident $(: $ty:ty)? $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
-			mode: capture $output_mode:tt $args:tt
+			mode: capture $output_mode:tt $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		$crate::fmt_internal! {
 			input: { { $field_name $(: $ty)? = $field_name; $($($fmt_args)*)? } $($inputs)* },
 			output: { $($outputs)* },
 			args: {
-				mode: capture $output_mode $args
+				mode: capture $output_mode $args,
+				$($rest)*
 			}
 		}
 	};
@@ -366,7 +382,8 @@ macro_rules! fmt_internal {
 			mode: nocapture write {
 				writer: $writer:expr,
 				ignore_err: false,
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
 		'block: {
@@ -386,7 +403,8 @@ macro_rules! fmt_internal {
 			mode: nocapture write {
 				writer: $writer:expr,
 				ignore_err: true,
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
 		'block: {
@@ -404,7 +422,8 @@ macro_rules! fmt_internal {
 		input: {},
 		output: {},
 		args: {
-			mode: $capture_mode:tt generate $args:tt
+			mode: $capture_mode:tt generate $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		""
@@ -414,7 +433,8 @@ macro_rules! fmt_internal {
 		input: {},
 		output: { internal [$($literals:expr, )*] },
 		args: {
-			mode: $capture_mode:tt generate $args:tt
+			mode: $capture_mode:tt generate $args:tt,
+			$($rest:tt)*
 		}
 	} => {
 		::core::concat!($($literals),*)
@@ -444,7 +464,8 @@ macro_rules! fmt_internal {
 				name: self,
 				ty: $ty:ty,
 				value: $value:expr,
-			}
+			},
+			$($rest:tt)*
 		}
 	} => {
 		compile_error!("not allowed to use name `self`. please specify a different name, such as `_self`")
@@ -458,7 +479,8 @@ macro_rules! fmt_internal {
 				name: $name:ident,
 				ty: Self,
 				value: $value:expr,
-			}
+			},
+			$($rest:tt)*
 		}
 	} => {
 		compile_error!("not allowed to use type `Self`. please specify the concrete type.");
@@ -472,7 +494,8 @@ macro_rules! fmt_internal {
 				name: $name:ident,
 				ty: $ty:ty,
 				value: $value:expr,
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {{
 		struct W($ty);
@@ -502,7 +525,8 @@ macro_rules! fmt_internal {
 		args: {
 			mode: nocapture generate_methods {
 				name: $name:ident,
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
 		#[inline]
@@ -537,7 +561,8 @@ macro_rules! fmt_internal {
 				lifetime: $lifetime:lifetime,
 				optional_lifetime: $($optional_lifetime:lifetime)?,
 				reference: { $($reference:tt)? },
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
 		$crate::get_write_to_from_fmt_args! { $value; $fmt_args }
@@ -555,7 +580,8 @@ macro_rules! fmt_internal {
 				lifetime: $lifetime:lifetime,
 				optional_lifetime: $($optional_lifetime:lifetime)?,
 				reference: { & },
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
 		{
@@ -618,7 +644,8 @@ macro_rules! fmt_internal {
 				lifetime: $lifetime:lifetime,
 				optional_lifetime: $($optional_lifetime:lifetime)?,
 				reference: { $($reference:tt)? },
-			}
+			},
+			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
 		$($reference)? {
@@ -681,7 +708,8 @@ macro_rules! fmt {
 					lifetime: 'a,
 					optional_lifetime:,
 					reference: { & },
-				}
+				},
+				ends_in_newline: false,
 			}
 		}
 	};
@@ -694,7 +722,8 @@ macro_rules! fmt {
 					lifetime: 'a,
 					optional_lifetime:,
 					reference: {},
-				}
+				},
+				ends_in_newline: false,
 			}
 		}
 	};
@@ -710,7 +739,8 @@ macro_rules! fmt {
 					name: $name,
 					ty: $ty,
 					value: $value,
-				}
+				},
+				ends_in_newline: false,
 			}
 		}
 	};
@@ -746,7 +776,8 @@ macro_rules! fmt {
 				mode: nocapture write {
 					writer: $writer,
 					ignore_err: false,
-				}
+				},
+				ends_in_newline: false,
 			}
 		}
 	};
@@ -758,7 +789,8 @@ macro_rules! fmt {
 				mode: nocapture write {
 					writer: $writer,
 					ignore_err: true,
-				}
+				},
+				ends_in_newline: false,
 			}
 		}
 	};
@@ -769,7 +801,8 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture generate_methods {
 					name: $name,
-				}
+				},
+				ends_in_newline: false,
 			}
 		}
 
@@ -858,10 +891,23 @@ pub fn test() {
 
     struct Tuple(i32, bool);
 
+    struct Struct2 {
+        a2: i32,
+        b2: bool,
+    }
+
+    impl WriteTo for Struct2 {
+        fmt! { [s] => {s.a2} "sussy rizz" {s.b2} }
+    }
+
     let struct_ = Struct { a: 12, b: true };
     let s = fmt_struct!({} => Struct; { a: {a = struct_.a}, b: {b = struct_.b} });
     let s0 = s.to_string();
     assert_eq!(s0, "Struct { a: 12, b: true }");
+
+    let s = Struct2 { a2: 123, b2: false };
+    let s0 = s.to_string();
+    assert_eq!(s0, "123sussy rizzfalse");
 
     let tuple = Tuple(99, true);
     let s = fmt_tuple_struct!({} => Tuple; ({a = tuple.0}, {b = tuple.1}));
@@ -882,10 +928,11 @@ pub fn test() {
     }
 
     let a = "abc";
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let b = "def";
+    let s = fmt!({} => "123" [xyz!()] "abc" {a} {b} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
+    assert_eq!(s0, "123XYZabcabcdefabc");
 
     let a = &mut *String::from("abc");
     let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
@@ -957,7 +1004,7 @@ pub fn test() {
 
     let a = 12.1234_f32;
     const F: f32 = 12.1234;
-    let s = fmt!({} => "999" [xyz!()] "abc" {a;} "abc" (F;) "abc");
+    let s = fmt!({} => "999" [xyz!()] "abc" {a;std .3} "abc" (F;) "abc");
     let s0 = ToString::to_string(s);
     // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 

@@ -27,38 +27,86 @@ where
     }
 }
 
-macro_rules! declare_write_to_wrapper_struct_internal {
-    { $($Struct:ident $(<$(const $CONST:ident : $ConstType:ty),* $(,)?>)? $Trait:ident $fn:ident),* $(,)? } => {
-        $(
-            pub struct $Struct<T $($(, const $CONST: $ConstType)*)?>(T)
+#[macro_export]
+macro_rules! declare_fmt_wrapper_struct {
+    { $Struct:ident $Trait:ident $fn:ident $(, $($($rest:tt)+)?)? } => {
+        pub struct $Struct<T>(T)
+        where
+            T: ?Sized,
+            Self: $crate::write_to::WriteTo;
+
+        pub trait $Trait {
+            fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
+        }
+
+        impl<T> $Trait for T
+        where
+            T: ?Sized,
+            $Struct<T>: $crate::write_to::WriteTo,
+        {
+            #[inline]
+            fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
+                unsafe { &*(self as *const Self as *const $Struct<Self>) }
+            }
+        }
+
+        $($($crate::declare_fmt_wrapper_struct! { $($rest)+ })?)?
+    };
+    { $Struct:ident <$(const $CONST:ident : $ConstType:ty),* $(,)?> $Trait:ident $fn:ident $(, $($($rest:tt)+)?)? } => {
+        pub struct $Struct<T $(, const $CONST: $ConstType)*>(T)
+        where
+            T: ?Sized,
+            $Struct<T $(, { $CONST })*>: $crate::write_to::WriteTo;
+
+        pub trait $Trait {
+            fn $fn<$(const $CONST : $ConstType),*>(&self) -> &$Struct<Self $(, { $CONST })*>
             where
-                T: ?Sized,
-                Self: $crate::write_to::WriteTo;
+                $Struct<Self $(, { $CONST })*>: $crate::write_to::WriteTo;
+        }
 
-            pub trait $Trait $(<$(const $CONST: $ConstType),*>)? {
-                fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
-            }
-
-            impl<T $($(, const $CONST: $ConstType)*)?> $Trait $(<$($CONST),*>)? for T
-                where
-                T: ?Sized,
-                $Struct<T $($(, { $CONST })*)?>: $crate::write_to::WriteTo,
+        impl<T> $Trait for T
+        where
+            T: ?Sized,
+        {
+            #[inline]
+            fn $fn<$(const $CONST : $ConstType),*>(&self) -> &$Struct<Self $(, { $CONST })*>
+            where
+                $Struct<Self $(, { $CONST })*>: $crate::write_to::WriteTo
             {
-                #[inline]
-                fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
-                    unsafe { &*(self as *const Self as *const $Struct<Self $($(, $CONST)*)?>) }
-                }
+                unsafe { &*(self as *const Self as *const $Struct<Self $(, $CONST)*>) }
             }
-        )*
+        }
+//         pub struct $Struct<T $($(, const $CONST: $ConstType)*)?>(T)
+//         where
+//             T: ?Sized,
+//             Self: $crate::write_to::WriteTo;
+//
+//         pub trait $Trait $(<$(const $CONST: $ConstType),*>)? {
+//             fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
+//         }
+//
+//         impl<T $($(, const $CONST: $ConstType)*)?> $Trait $(<$($CONST),*>)? for T
+//             where
+//             T: ?Sized,
+//             $Struct<T $($(, { $CONST })*)?>: $crate::write_to::WriteTo,
+//         {
+//             #[inline]
+//             fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
+//                 unsafe { &*(self as *const Self as *const $Struct<Self $($(, $CONST)*)?>) }
+//             }
+//         }
+
+        $($($crate::declare_fmt_wrapper_struct! { $($rest)+ })?)?
+
     };
 }
 
 macro_rules! declare_std_write_to_wrapper_struct_internal {
-    { $($Struct:ident $Trait:ident $fn:ident => $StdTrait:ident $write_fn:ident),* $(,)? } => {
+    { $($Struct:ident $(<$(const $CONST:ident : $ConstType:ty),* $(,)?>)? $Trait:ident $fn:ident => $StdTrait:ident $write_fn:ident),* $(,)? } => {
         $(
-            declare_write_to_wrapper_struct_internal! { $Struct $Trait $fn }
+            $crate::declare_fmt_wrapper_struct! { $Struct $(<$(const $CONST : $ConstType),*>)? $Trait $fn }
 
-            impl<T> $crate::write_to::WriteTo for $Struct<T>
+            impl<T $($(, const $CONST : $ConstType)*)?> $crate::write_to::WriteTo for $Struct<T $($(, { $CONST })*)?>
             where
                 T: ::core::fmt::$StdTrait + ?Sized,
             {
@@ -67,7 +115,7 @@ macro_rules! declare_std_write_to_wrapper_struct_internal {
                 where
                     W: $crate::write::Write + ?Sized,
                 {
-                    $crate::write::Write::$write_fn(w, &self.0)
+                    $crate::write::Write::$write_fn::<T $($(, { $CONST })*)?>(w, &self.0)
                 }
             }
         )*
@@ -87,7 +135,7 @@ macro_rules! impl_fmt_trait_internal {
     };
 }
 
-declare_write_to_wrapper_struct_internal! {
+declare_fmt_wrapper_struct! {
     Debug   FmtDebug    fmt_debug,
     Binary  FmtBinary   fmt_binary,
     Octal   FmtOctal    fmt_octal,
@@ -95,26 +143,13 @@ declare_write_to_wrapper_struct_internal! {
     Precision<const PRECISION: u8> FmtPrecision fmt_precision,
 }
 
-// pub trait FmtPrecisionInternal<const PRECISION: u8>: FmtPrecision<PRECISION> {
-//     fn fmt_precision_internal(&self) -> &Self;
-// }
-//
-// impl<T, const PRECISION: u8> FmtPrecisionInternal<PRECISION> for T
-// where
-//     T: FmtPrecision<PRECISION>,
-// {
-//     #[inline]
-//     fn fmt_precision_internal(&self) -> &Self {
-//         self
-//     }
-// }
-
 declare_std_write_to_wrapper_struct_internal! {
     StdDisplay  FmtStdDisplay   fmt_std_display => Display  write_std_display,
     StdDebug    FmtStdDebug     fmt_std_debug   => Debug    write_std_debug,
     StdBinary   FmtStdBinary    fmt_std_binary  => Binary   write_std_binary,
     StdOctal    FmtStdOctal     fmt_std_octal   => Octal    write_std_octal,
     StdHex      FmtStdHex       fmt_std_hex     => UpperHex write_std_upper_hex,
+    StdPrecision<const PRECISION: u8>   FmtStdPrecision fmt_std_precision   => Display write_std_precision,
 }
 
 impl_fmt_trait_internal! { FmtStdDisplay    fmt_std_display => Fmt          fmt         => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 }
