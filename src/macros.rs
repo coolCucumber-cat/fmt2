@@ -113,33 +113,27 @@ macro_rules! len_hint_fmt_internal {
 macro_rules! fmt_internal {
 	// region: do recursion
 
+	// ends with ln
+	{
+		input: { $([$($prev:expr),* $(,)?])* ln $([$(""),* $(,)?])* },
+		output: { $($outputs:tt)* },
+		args: {
+			mode: $args0:tt $args1:tt $args2:tt,
+			ends_in_newline: $ends_in_newline:expr,
+		}
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* "\n"] },
+			output: { $($outputs)* },
+			args: {
+				mode: $args0 $args1 $args2,
+				ends_in_newline: true,
+			}
+		}
+	};
 	// ln
 	{
 		input: { $([$($prev:expr),* $(,)?])* ln $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { [$($($prev, )*)*] ["\n"] $($inputs)* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// ln literal
-	{
-		input: { $([$($prev:expr),* $(,)?])* "\n" $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { [$($($prev, )*)*] ["\n",] $($inputs)* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// ln literal char
-	{
-		input: { $([$($prev:expr),* $(,)?])* '\n' $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
@@ -163,24 +157,156 @@ macro_rules! fmt_internal {
 	};
 	// foreground ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* fg $fg:tt $($inputs:tt)* },
+		input: { $([$($prev:expr),* $(,)?])* @fg(@$fg:tt) { $($inputs0:tt)* } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ansi_set!(foreground $fg)] $($inputs)* },
+			input: { [$($($prev, )*)*] @fg_no_reset(@$fg) $($inputs0)* @fg_no_reset(@reset) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// background ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* bg $bg:tt $($inputs:tt)* },
+		input: { $([$($prev:expr),* $(,)?])* @bg(@$bg:tt) { $($inputs0:tt)* } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ansi_set!(background $bg)] $($inputs)* },
+			input: { [$($($prev, )*)*] @bg_no_reset(@$bg) $($inputs0)* @bg_no_reset(@reset) $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// foreground ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @fg_no_reset(@$fg:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ansi_set_style!(foreground $fg)] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// background ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @bg_no_reset(@$bg:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ansi_set_style!(background $bg)] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor show ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_show $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?25h"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// for internal use so that you can use `@start` to move the cursor to the start
+	{
+		input: { $([$($prev:expr),* $(,)?])* start $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* "1"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor move ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move(@$direction:tt $count:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $count [$crate::ansi_direction_code!($direction)] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor move_to_x ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_x($x:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $x ["G"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor move_to_y ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_y($y:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $y ["d"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor move_to ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, $y:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $y [";"] $x ["H"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// enter_alt_screen ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @enter_alt_screen $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?1049h"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// leave_alt_screen ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @leave_alt_screen $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?1049l"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// clear ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @clear(@$mode:ident) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), $crate::ansi_clear_code!($mode)] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -245,18 +371,6 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
-	// 2 groups of literals, ending in newline
-	{
-		input: { $([$($prev:expr),* $(,)?])* [$("", )* "\n" $(, "\n")* $(,)?] },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* "\n"] },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
 	// 2 groups of literals
 	{
 		input: { [$($literal1:expr),* $(,)?] [$($literal2:expr),* $(,)?] $($inputs:tt)* },
@@ -266,6 +380,18 @@ macro_rules! fmt_internal {
 		$crate::fmt_internal! {
 			input: { [$($literal1, )* $($literal2),*] $($inputs)* },
 			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// literals
+	{
+		input: { [$($literal:expr),* $(,)?] $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal [$($literal, )*] },
 			args: $args
 		}
 	};
@@ -622,6 +748,8 @@ macro_rules! fmt_internal {
 
 			#[allow(non_camel_case_types)]
 			impl<$generic : $crate::write_to::WriteTo + ?Sized> $crate::write_to::WriteTo for W<$generic> {
+				const ENDS_IN_NEWLINE: bool = $ends_in_newline;
+
 				#[inline]
 				fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
 					where
@@ -686,6 +814,8 @@ macro_rules! fmt_internal {
 
 			#[allow(non_camel_case_types)]
 			impl<$($optional_lifetime,)? $($($generic : $crate::write_to::WriteTo + ?Sized, )?)*> $crate::write_to::WriteTo for W<$($optional_lifetime,)? $($($generic, )?)*> {
+				const ENDS_IN_NEWLINE: bool = $ends_in_newline;
+
 				#[inline]
 				fn write_to<W>(&self, w: &mut W) -> ::core::result::Result<(), W::Error>
 					where
@@ -905,9 +1035,9 @@ pub fn test() {
 
     use core::ops::Deref;
 
-    const fn ends_in_newline<W>() -> bool
+    const fn ends_in_newline<W>(w: &W) -> bool
     where
-        W: WriteTo,
+        W: WriteTo + ?Sized,
     {
         W::ENDS_IN_NEWLINE
     }
@@ -969,9 +1099,10 @@ pub fn test() {
 
     let a = "abc";
     let b = "def";
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} {b} "abc" ln);
+    let s = fmt!({} => "123" [xyz!()] "abc" {a} {b} "abc" ln [""]);
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
+    assert!(ends_in_newline(s));
     assert_eq!(s0, "123XYZabcabcdefabc\n");
 
     let a = &mut *String::from("abc");

@@ -35,9 +35,9 @@
     associated_type_defaults,
     impl_trait_in_assoc_type
 )]
+pub mod ansi;
 pub mod macros;
 pub mod str;
-pub mod style;
 pub mod utils;
 pub mod write;
 pub mod write_to;

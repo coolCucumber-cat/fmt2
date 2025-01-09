@@ -27,6 +27,7 @@ pub trait Write {
         }
         // if a newline is the last thing written to a life buffered writer, it's already flushed.
         // only flush if we want to flush and if it isnt already confirmed to be flushed
+        // we would use `flsuh_advanced` if we could, but it is not allowed, due to the generic
         if FLUSH && !(Self::IS_LINE_BUFFERED && (NEWLINE || WT::ENDS_IN_NEWLINE)) {
             self.flush_hint();
         }
@@ -61,6 +62,15 @@ pub trait Write {
 
     #[inline]
     fn flush_hint(&mut self) {}
+
+    #[inline]
+    fn flush_hint_advanced<const FLUSH: bool, const BUFFER_ENDS_IN_NEWLINE: bool>(&mut self) {
+        // if a newline is the last thing written to a life buffered writer, it's already flushed.
+        // only flush if we want to flush and if it isnt already confirmed to be flushed
+        if FLUSH && !(BUFFER_ENDS_IN_NEWLINE && Self::IS_LINE_BUFFERED) {
+            self.flush_hint();
+        }
+    }
 
     #[inline]
     fn write_std_display<D>(&mut self, d: &D) -> Result<(), Self::Error>
@@ -327,12 +337,12 @@ macro_rules! impl_write_flush_for_io_write {
 
 				#[inline]
 				fn write_str(&mut self, s: &str) -> ::core::result::Result<(), Self::Error> {
-					::std::io::Write::write_all(self, s.as_bytes())
+					::std::io::Write::write_all(self, str::as_bytes(s))
 				}
 
                 #[inline]
                 fn flush_hint(&mut self) {
-                    let _ = $crate::write::Flush::flush(self);
+                    let _ = ::std::io::Write::flush(self);
                 }
 			}
 
