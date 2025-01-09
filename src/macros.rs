@@ -113,6 +113,42 @@ macro_rules! len_hint_fmt_internal {
 macro_rules! fmt_internal {
 	// region: do recursion
 
+	// ln
+	{
+		input: { $([$($prev:expr),* $(,)?])* ln $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)*] ["\n"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// ln literal
+	{
+		input: { $([$($prev:expr),* $(,)?])* "\n" $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)*] ["\n",] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// ln literal char
+	{
+		input: { $([$($prev:expr),* $(,)?])* '\n' $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)*] ["\n"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
 	// literal
 	{
 		input: { $([$($prev:expr),* $(,)?])* $literal:literal $($inputs:tt)* },
@@ -121,18 +157,6 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal! {
 			input: { [$($($prev, )*)* $literal] $($inputs)* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// ln
-	{
-		input: { $([$($prev:expr),* $(,)?])* ln $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* "\n"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -221,6 +245,18 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
+	// 2 groups of literals, ending in newline
+	{
+		input: { $([$($prev:expr),* $(,)?])* [$("", )* "\n" $(, "\n")* $(,)?] },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* "\n"] },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
 	// 2 groups of literals
 	{
 		input: { [$($literal1:expr),* $(,)?] [$($literal2:expr),* $(,)?] $($inputs:tt)* },
@@ -230,18 +266,6 @@ macro_rules! fmt_internal {
 		$crate::fmt_internal! {
 			input: { [$($literal1, )* $($literal2),*] $($inputs)* },
 			output: { $($outputs)* },
-			args: $args
-		}
-	};
-	// literals
-	{
-		input: { [$($literal:expr),* $(,)?] $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs)* },
-			output: { $($outputs)* internal [$($literal, )*] },
 			args: $args
 		}
 	};
@@ -363,7 +387,7 @@ macro_rules! fmt_internal {
 		::core::compile_error!(::core::concat!(
 			"expressions must be either valid literals or in (round), {curly} or [square] brackets\n",
 			"see documentation for the `fmt` macro\n",
-			::core::stringify!($tt),
+			::core::stringify!($tt), "\n",
 			$(
 				::core::stringify!($inputs), "\n"
 			),*
@@ -805,8 +829,17 @@ macro_rules! fmt {
 				ends_in_newline: false,
 			}
 		}
-
-	}
+	};
+	{ [] => $($tt:tt)* } => {
+		$crate::fmt_internal! {
+			input: { $($tt)* },
+			output: {},
+			args: {
+				mode: nocapture generate_methods_nameless {},
+				ends_in_newline: false,
+			}
+		}
+	};
 }
 
 #[macro_export]
@@ -872,6 +905,13 @@ pub fn test() {
 
     use core::ops::Deref;
 
+    const fn ends_in_newline<W>() -> bool
+    where
+        W: WriteTo,
+    {
+        W::ENDS_IN_NEWLINE
+    }
+
     struct Struct {
         a: i32,
         b: bool,
@@ -929,10 +969,10 @@ pub fn test() {
 
     let a = "abc";
     let b = "def";
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} {b} "abc");
+    let s = fmt!({} => "123" [xyz!()] "abc" {a} {b} "abc" ln);
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcdefabc");
+    assert_eq!(s0, "123XYZabcabcdefabc\n");
 
     let a = &mut *String::from("abc");
     let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
