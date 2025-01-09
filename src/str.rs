@@ -1,5 +1,8 @@
 use crate::write_to::FmtAdvanced;
 
+pub trait FmtStr: FmtAdvanced<Target = str> {}
+impl<T> FmtStr for T where T: FmtAdvanced<Target = str> {}
+
 pub trait ConstStr {
     const CONST_STR: &'static str;
 }
