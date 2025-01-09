@@ -18,8 +18,12 @@ macro_rules! ANSI_START_macro {
     };
 }
 
+// region: colour
 #[macro_export]
 macro_rules! ansi_color_code_from {
+    (reset) => {
+        ""
+    };
     (black) => {
         "5;0"
     };
@@ -91,7 +95,7 @@ macro_rules! ansi_color_code_from {
 }
 
 #[macro_export]
-macro_rules! ansi_set_single_internal {
+macro_rules! ansi_set_style_single_internal {
 	(foreground reset) => {
 		"39"
 	};
@@ -112,50 +116,97 @@ macro_rules! ansi_set_single_internal {
 	};
 	(foreground $cf:tt, background $cb:tt) => {
 		::core::concat!(
-			$crate::ansi_set_single_internal!(foreground $cf),
+			$crate::ansi_set_style_single_internal!(foreground $cf),
 			";",
-			$crate::ansi_set_single_internal!(background $cb),
+			$crate::ansi_set_style_single_internal!(background $cb),
 		)
 	};
 }
 
 #[macro_export]
-macro_rules! ansi_set_single {
+macro_rules! ansi_set_style_single {
 	($($tt:tt)*) => {
-		::core::concat!($crate::ANSI_START_macro!(), $crate::ansi_set_single_internal!($($tt)*), "m")
+		::core::concat!($crate::ANSI_START_macro!(), $crate::ansi_set_style_single_internal!($($tt)*), "m")
 	};
 }
 
 #[macro_export]
-macro_rules! ansi_set {
+macro_rules! ansi_set_style {
 	(foreground $f:tt) => {
-		$crate::ansi_set_single!(foreground $f)
+		$crate::ansi_set_style_single!(foreground $f)
 	};
 	(background $b:tt) => {
-		$crate::ansi_set_single!(background $b)
+		$crate::ansi_set_style_single!(background $b)
 	};
 	(underline $u:tt) => {
-		$crate::ansi_set_single!(underline $u)
+		$crate::ansi_set_style_single!(underline $u)
 	};
 	(foreground $f:tt, background $b:tt) => {
-		$crate::ansi_set_single!(foreground $f, background $b)
+		$crate::ansi_set_style_single!(foreground $f, background $b)
 	};
 	(background $b:tt, underline $u:tt) => {
 		::core::concat!(
-			$crate::ansi_set_single!(background $b),
-			$crate::ansi_set_single!(underline $u),
+			$crate::ansi_set_style_single!(background $b),
+			$crate::ansi_set_style_single!(underline $u),
 		)
 	};
 	(foreground $f:tt, underline $u:tt) => {
 		::core::concat!(
-			$crate::ansi_set_single!(foreground $f),
-			$crate::ansi_set_single!(underline $u),
+			$crate::ansi_set_style_single!(foreground $f),
+			$crate::ansi_set_style_single!(underline $u),
 		)
 	};
 	(foreground $f:tt, background $b:tt, underline $u:tt) => {
 		::core::concat!(
-			$crate::ansi_set_single!(foreground $f, background $b),
-			$crate::ansi_set_single!(underline $u),
+			$crate::ansi_set_style_single!(foreground $f, background $b),
+			$crate::ansi_set_style_single!(underline $u),
 		)
 	};
 }
+// endregion
+
+// region: cursor
+#[macro_export]
+macro_rules! ansi_direction_code {
+    (up) => {
+        "A"
+    };
+    (down) => {
+        "B"
+    };
+    (right) => {
+        "C"
+    };
+    (left) => {
+        "D"
+    };
+}
+
+// save_position = "\x1B7"
+// restore_position = "\x1B8"
+
+// endregion
+
+// region: clear
+#[macro_export]
+macro_rules! ansi_clear_code {
+    (all) => {
+        "2J"
+    };
+    (all_and_history) => {
+        "3J"
+    };
+    (from_cursor_down) => {
+        "J"
+    };
+    (from_cursor_up) => {
+        "1J"
+    };
+    (current_line) => {
+        "2K"
+    };
+    (until_newline) => {
+        "K"
+    };
+}
+// endregion
