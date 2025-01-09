@@ -13,17 +13,46 @@ pub trait WriteTo {
     }
 }
 
+impl WriteTo for str {
+    fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        w.write_str(self)
+    }
+
+    fn len_hint(&self) -> usize {
+        self.len()
+    }
+}
+
+pub trait FmtAdvanced {
+    type Target: WriteTo + ?Sized;
+    fn fmt_advanced(&self) -> &Self::Target;
+}
+
+impl<T> FmtAdvanced for T
+where
+    T: WriteTo + ?Sized,
+{
+    type Target = Self;
+    #[inline]
+    fn fmt_advanced(&self) -> &Self::Target {
+        self
+    }
+}
+
 pub trait Fmt {
     fn fmt(&self) -> &(impl WriteTo + ?Sized);
 }
 
 impl<T> Fmt for T
 where
-    T: WriteTo + ?Sized,
+    T: FmtAdvanced + ?Sized,
 {
     #[inline]
     fn fmt(&self) -> &(impl WriteTo + ?Sized) {
-        self
+        self.fmt_advanced()
     }
 }
 
@@ -259,24 +288,21 @@ macro_rules! impl_std_display_for_write_to {
 mod tests {
     use core::borrow::Borrow;
 
-    use crate::{
-        str::{StaticStr, Str},
-        write_to::WriteTo,
-    };
+    use crate::{str::FmtStaticStr, write_to::WriteTo};
 
-    use super::ToString;
+    use super::{FmtAdvanced, ToString};
 
     #[test]
     fn borrow() {
         let k = {
             let s = "123";
             // let s = String::new();
-            s.str()
+            s.fmt_advanced()
         };
         ToString::to_string(k);
         let k = {
             let s = true;
-            s.static_str()
+            s.fmt_static_str()
         };
         ToString::to_string(k);
     }
@@ -295,7 +321,7 @@ mod tests {
             where
                 W: Write + ?Sized,
             {
-                w.write_str(self.0.str())
+                w.write_str(self.0.fmt_advanced())
             }
         }
 

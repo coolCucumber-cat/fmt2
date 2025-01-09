@@ -28,12 +28,11 @@
     unwrap_infallible,
     fmt_internals,
     formatting_options,
-    concat_idents,
-    try_blocks,
+    // concat_idents,
+    // try_blocks,
     // specialization,
     // min_specialization,
-    associated_type_defaults,
-    impl_trait_in_assoc_type
+    // impl_trait_in_assoc_type
 )]
 pub mod ansi;
 pub mod macros;
