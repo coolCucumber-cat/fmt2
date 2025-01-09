@@ -170,23 +170,28 @@ impl FmtAdvanced for bool {
 macro_rules! impl_const_str_for {
 	{ $($ty:ty $(=> $value:expr)?),* $(,)? } => {
 		$(
-            $crate::impl_const_str_for_internal! { $ty $(=> $value)? }
+            impl $crate::str::ConstStr for $ty {
+                const CONST_STR: &str = $crate::impl_const_str_for_get_value_internal! { $ty $(=> $value)? };
+            }
+
+            impl $crate::str::FmtAdvanced for $ty {
+                type Target = str;
+                fn fmt_advanced(&self) -> &Self::Target {
+                    $crate::str::FmtStaticStrImpl::fmt_static_str_impl(self)
+                }
+            }
         )*
 	};
 }
 
 #[macro_export]
 #[doc(hidden)]
-macro_rules! impl_const_str_for_internal {
+macro_rules! impl_const_str_for_get_value_internal {
     { $ty:ty => $value:expr } => {
-        impl $crate::str::ConstStr for $ty {
-            const CONST_STR: &str = $value;
-        }
+        $value
     };
     { $ty:ty } => {
-        impl $crate::str::ConstStr for $ty {
-            const CONST_STR: &str = ::core::stringify!($ty);
-        }
+        ::core::stringify!($ty)
     };
 }
 

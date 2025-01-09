@@ -215,18 +215,6 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
-	// for internal use so that you can use `@start` to move the cursor to the start
-	{
-		input: { $([$($prev:expr),* $(,)?])* start $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* "1"] $($inputs)* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
 	// cursor move ansi
 	{
 		input: { $([$($prev:expr),* $(,)?])* @cursor_move(@$direction:tt $count:tt) $($inputs:tt)* },
@@ -241,12 +229,36 @@ macro_rules! fmt_internal {
 	};
 	// cursor move_to_x ansi
 	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_x(@start) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, "G"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor move_to_x ansi
+	{
 		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_x($x:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $x ["G"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// cursor move_to_y ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_y(@start) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, "d"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
