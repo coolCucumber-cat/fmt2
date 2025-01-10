@@ -1,7 +1,12 @@
 use crate::write_to::FmtAdvanced;
 
-pub trait FmtStr: FmtAdvanced<Target = str> {}
-impl<T> FmtStr for T where T: FmtAdvanced<Target = str> {}
+pub trait FmtStr: FmtAdvanced<Target = str> {
+    #[inline]
+    fn fmt_str(&self) -> &str {
+        self.fmt_advanced()
+    }
+}
+impl<T> FmtStr for T where T: FmtAdvanced<Target = str> + ?Sized {}
 
 pub trait ConstStr {
     const CONST_STR: &'static str;
@@ -114,59 +119,27 @@ impl FmtAdvanced for bool {
     }
 }
 
-// #[derive(Clone, Copy)]
-// pub struct WithStr<T, U = &'static str> {
-//     pub value: T,
-//     pub str: U,
-// }
-//
-// impl<T, U> WithStr<T, U> {
-//     pub const fn new(value: T, str: U) -> Self {
-//         Self { value, str }
-//     }
-//
-//     pub fn map_value<V>(self, f: impl FnOnce(T) -> V) -> WithStr<V, U> {
-//         WithStr {
-//             value: f(self.value),
-//             str: self.str,
-//         }
-//     }
-//
-//     pub fn replace_value<V>(self, value: V) -> WithStr<V, U> {
-//         WithStr {
-//             value,
-//             str: self.str,
-//         }
-//     }
-// }
-//
-// impl<T, U> Str for WithStr<T, &'_ U>
-// where
-//     U: Str + ?Sized,
-// {
-//     fn str(&self) -> &str {
-//         self.str.str()
-//     }
-// }
-//
-// impl<T0, T1, U> AsRef<T1> for WithStr<T0, U>
-// where
-//     T0: AsRef<T1>,
-//     T1: ?Sized,
-// {
-//     #[inline]
-//     fn as_ref(&self) -> &T1 {
-//         self.value.as_ref()
-//     }
-// }
-//
-// impl<T, U> Deref for WithStr<T, U> {
-//     type Target = Self;
-//
-//     fn deref(&self) -> &Self::Target {
-//         self
-//     }
-// }
+pub trait TransmuteToAsciiChar: Sized {
+    fn transmute_to_ascii_char(self) -> core::ascii::Char;
+}
+
+impl TransmuteToAsciiChar for core::ascii::Char {
+    #[inline]
+    fn transmute_to_ascii_char(self) -> core::ascii::Char {
+        self
+    }
+}
+
+impl<T> FmtAdvanced for [T]
+where
+    T: TransmuteToAsciiChar,
+{
+    type Target = str;
+    fn fmt_advanced(&self) -> &Self::Target {
+        let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
+        unsafe { core::str::from_utf8_unchecked(b) }
+    }
+}
 
 #[macro_export]
 macro_rules! impl_const_str_for {
@@ -176,7 +149,7 @@ macro_rules! impl_const_str_for {
                 const CONST_STR: &str = $crate::impl_const_str_for_get_value_internal! { $ty $(=> $value)? };
             }
 
-            impl $crate::str::FmtAdvanced for $ty {
+            impl $crate::write_to::FmtAdvanced for $ty {
                 type Target = str;
                 fn fmt_advanced(&self) -> &Self::Target {
                     $crate::str::FmtStaticStrImpl::fmt_static_str_impl(self)

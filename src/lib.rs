@@ -28,6 +28,7 @@
     unwrap_infallible,
     fmt_internals,
     formatting_options,
+    ascii_char,
     // concat_idents,
     // try_blocks,
     // specialization,

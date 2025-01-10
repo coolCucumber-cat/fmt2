@@ -2,6 +2,7 @@ use crate::write::Write;
 
 pub trait WriteTo {
     const ENDS_IN_NEWLINE: bool = false;
+    const MIN_SIZE: usize = 0;
 
     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
     where
@@ -55,6 +56,23 @@ where
         self.fmt_advanced()
     }
 }
+
+// impl<I, T> WriteTo for I
+// where
+//     I: Iterator<Item = &T> + ?Sized,
+//     T: WriteTo + ?Sized,
+// {
+//     const ENDS_IN_NEWLINE: bool = T::ENDS_IN_NEWLINE;
+//     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+//     where
+//         W: Write + ?Sized,
+//     {
+//         for v in self {
+//             w.write(v)
+//         }
+//         Ok(())
+//     }
+// }
 
 #[macro_export]
 macro_rules! declare_fmt_wrapper_struct {
@@ -170,6 +188,7 @@ declare_fmt_wrapper_struct! {
     Octal   FmtOctal    fmt_octal,
     Hex     FmtHex      fmt_hex,
     Precision<const PRECISION: u8> FmtPrecision fmt_precision,
+    Iterator FmtIterator fmt_iterator,
 }
 
 declare_std_write_to_wrapper_struct_internal! {
@@ -186,6 +205,48 @@ impl_fmt_trait_internal! { FmtStdDebug      fmt_std_debug   => FmtDebug     fmt_
 impl_fmt_trait_internal! { FmtStdBinary     fmt_std_binary  => FmtBinary    fmt_binary  => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
 impl_fmt_trait_internal! { FmtStdOctal      fmt_std_octal   => FmtOctal     fmt_octal   => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
 impl_fmt_trait_internal! { FmtStdHex        fmt_std_hex     => FmtHex       fmt_hex     => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
+//
+// impl<'t, I, T> WriteTo for Iterator<I>
+// where
+//     I: core::iter::Iterator<Item = &'t T> + Clone,
+//     T: WriteTo + ?Sized + 't,
+// {
+//     const ENDS_IN_NEWLINE: bool = T::ENDS_IN_NEWLINE;
+//
+//     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+//     where
+//         W: Write + ?Sized,
+//     {
+//         for t in self.0.clone() {
+//             t.write_to(w)?;
+//         }
+//         Ok(())
+//     }
+// }
+
+impl<'t, I, T> WriteTo for Iterator<I>
+where
+    I: core::iter::Iterator<Item = &'t T> + Clone,
+    T: WriteTo + ?Sized + 't,
+{
+    const ENDS_IN_NEWLINE: bool = T::ENDS_IN_NEWLINE;
+
+    #[inline]
+    fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
+    where
+        W: Write + ?Sized,
+    {
+        for t in self.0.clone() {
+            t.write_to(w)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn len_hint(&self) -> usize {
+        self.0.size_hint().0 * T::MIN_SIZE
+    }
+}
 
 impl WriteTo for core::fmt::Arguments<'_> {
     fn write_to<W>(&self, w: &mut W) -> Result<(), W::Error>
@@ -242,6 +303,71 @@ where
         let mut s = String::with_capacity(wt.len_hint());
         s.write(wt).into_ok();
         s
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct WithFmtAdvanced<'a, T, U = str>
+where
+    U: WriteTo + ?Sized,
+{
+    pub value: T,
+    pub fmt: &'a U,
+}
+
+impl<'a, T, U> WithFmtAdvanced<'a, T, U>
+where
+    U: WriteTo + ?Sized,
+{
+    pub const fn new(value: T, str: &'a U) -> Self {
+        Self { value, fmt: str }
+    }
+
+    pub fn map_value<V>(self, f: impl FnOnce(T) -> V) -> WithFmtAdvanced<'a, V, U> {
+        WithFmtAdvanced {
+            value: f(self.value),
+            fmt: self.fmt,
+        }
+    }
+
+    pub fn replace_value<V>(self, value: V) -> WithFmtAdvanced<'a, V, U> {
+        WithFmtAdvanced {
+            value,
+            fmt: self.fmt,
+        }
+    }
+}
+
+impl<T, U> FmtAdvanced for WithFmtAdvanced<'_, T, U>
+where
+    U: WriteTo + ?Sized,
+{
+    type Target = U;
+    fn fmt_advanced(&self) -> &Self::Target {
+        self.fmt.fmt_advanced()
+    }
+}
+
+impl<T0, T1, U> AsRef<T1> for WithFmtAdvanced<'_, T0, U>
+where
+    T0: AsRef<T1>,
+    T1: ?Sized,
+    U: WriteTo + ?Sized,
+{
+    #[inline]
+    fn as_ref(&self) -> &T1 {
+        self.value.as_ref()
+    }
+}
+
+impl<T, U> core::ops::Deref for WithFmtAdvanced<'_, T, U>
+where
+    U: WriteTo + ?Sized,
+{
+    type Target = Self;
+
+    fn deref(&self) -> &Self::Target {
+        self
     }
 }
 
