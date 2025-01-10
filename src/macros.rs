@@ -6,6 +6,27 @@ macro_rules! get_write_to_from_fmt_args {
 	{ $value:expr; noderef } => {
 		$value
 	};
+    { $value:expr; advanced } => {{
+        use $crate::write_to::FmtAdvanced as _;
+		$value.fmt_advanced()
+    }};
+    { $value:expr; str } => {{
+        use $crate::str::FmtStr as _;
+		$value.fmt_str()
+    }};
+    { $value:expr; str first_line } => {{
+        use $crate::str::FmtStr as _;
+		$crate::utils::first_line($value.fmt_str())
+    }};
+    { $value:expr; str first_line no_debug_assertion } => {{
+        use $crate::str::FmtStr as _;
+		$crate::utils::first_line_no_debug_assertion($value.fmt_str())
+    }};
+    { $value:expr; .. } => {{
+		use $crate::write_to::FmtIterator as _;
+		use ::core::iter::IntoIterator as _;
+		$value.into_iter().fmt_iterator()
+    }};
     { $value:expr; } => {{
         use $crate::write_to::Fmt as _;
 		$value.fmt()
@@ -52,9 +73,23 @@ macro_rules! get_write_to_from_fmt_args {
 macro_rules! write_fmt_single_internal {
 	($writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
 		use $crate::write::Write as _;
-		($writer).write_advanced::<_, false, false>(
-			$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
+		$writer.write_advanced::<_, false, false>(
+			$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* },
 		)
+	}};
+
+	($writer:expr => (@($($stmt:stmt)*))) => {{
+		$($stmt)*
+	}};
+
+	($writer:expr => (@..($iterator:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*))) => {'block_2: {
+		use ::core::iter::IntoIterator as _;
+		for $name $(: $ty)? in $iterator.into_iter() {
+			if let ::core::result::Result::Err(err) = $crate::fmt! { (? $writer) => $($fmt)* } {
+				break 'block_2 ::core::result::Result::Err(err);
+			}
+		}
+		::core::result::Result::Ok(())
 	}};
 
 	($writer:expr => [$("", )*]) => {{
@@ -79,9 +114,19 @@ macro_rules! len_hint_fmt_single_internal {
 			$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* }
 		)
 	};
+
+	((@($($stmt:stmt)*))) => {
+		0
+	};
+
+	((@..($iterator:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*))) => {{
+		0
+	}};
+
 	([$("", )*]) => {{
 		::core::compile_error!("unreachable. dev error or bug using macro");
 	}};
+
 	([$($value:expr, )+]) => {
 		::core::concat!($($value),+).len()
 	};
@@ -138,7 +183,7 @@ macro_rules! fmt_internal {
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)*] ["\n"] $($inputs)* },
+			input: { [$($($prev, )*)* "\n"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -215,9 +260,21 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
+	// cursor hide ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_hide $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?25l"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
 	// cursor move ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move(@$direction:tt $count:tt) $($inputs:tt)* },
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move(@$direction:tt, $count:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
@@ -277,6 +334,39 @@ macro_rules! fmt_internal {
 	};
 	// cursor move_to ansi
 	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to(@start, @start) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, ";", 1, "H"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to(@start, $y:tt) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $y [";", 1, "H"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	{
+		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, @start) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, ";"] $x ["H"] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	{
 		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, $y:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
@@ -319,6 +409,18 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal! {
 			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), $crate::ansi_clear_code!($mode)] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// reset_line ansi
+	{
+		input: { $([$($prev:expr),* $(,)?])* @reset_line $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { [$($($prev, )*)*] @cursor_move_to_x(@start) @clear(@current_line) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -407,6 +509,18 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
+	// literals map
+	{
+		input: { @map($map:expr) { [$($literal:expr),* $(,)?] } $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal { ($map)(::core::concat!($($literal, )*)) } },
+			args: $args
+		}
+	};
 
 	// non-capturing expression (mode = capture)
 	{
@@ -420,6 +534,24 @@ macro_rules! fmt_internal {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
 			output: { $($outputs)* internal { $value; $($($fmt_args)*)? } },
+			args: {
+				mode: capture $output_mode $args,
+				$($rest)*
+			}
+		}
+	};
+	// non-capturing expression map (mode = capture)
+	{
+		input: { @map($map:expr) { ($value:expr $(; $($fmt_args:tt)*)?) } $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: {
+			mode: capture $output_mode:tt $args:tt,
+			$($rest:tt)*
+		}
+	} => {
+		$crate::fmt_internal! {
+			input: { ($value:expr; $($($fmt_args)*)?) $($inputs)* },
+			output: { $($outputs)* },
 			args: {
 				mode: capture $output_mode $args,
 				$($rest)*
@@ -505,6 +637,43 @@ macro_rules! fmt_internal {
 		}
 	};
 
+	// do
+	{
+		input: { @($($stmt:stmt)*) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@($($stmt)*; ::core::result::Result::Ok(()))) },
+			args: $args
+		}
+	};
+	// do
+	{
+		input: { @?($($stmt:stmt)*) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@($($stmt)*)) },
+			args: $args
+		}
+	};
+	// iter
+	{
+		input: { @..($($tt:tt)*) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@..($($tt)*)) },
+			args: $args
+		}
+	};
+
 	// error (macros must be in square brackets)
 	{
 		input: { $name:ident!$tt:tt $($inputs:tt)* },
@@ -549,11 +718,16 @@ macro_rules! fmt_internal {
 		}
 	} => {
 		'block: {
-			$(
-				if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!($writer => $fmt) {
-					break 'block ::core::result::Result::Err(err);
-				}
-			)*
+			use $crate::write::GetWriteInternal as _;
+			#[allow(irrefutable_let_patterns)]
+			if let writer = $writer.get_write_internal() {
+				$(
+					if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!(writer => $fmt) {
+						break 'block ::core::result::Result::Err(err);
+					}
+				)*
+				$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
+			}
 			::core::result::Result::Ok(())
 		}
 	};
@@ -570,12 +744,16 @@ macro_rules! fmt_internal {
 		}
 	} => {
 		'block: {
-			$(
-				if let ::core::result::Result::Err(_) = $crate::write_fmt_single_internal!($writer => $fmt) {
-					break 'block;
-				}
-			)*
-			// TODO: flush hint
+			use $crate::write::GetWriteInternal as _;
+			#[allow(irrefutable_let_patterns)]
+			if let writer = $writer.get_write_internal() {
+				$(
+					if let ::core::result::Result::Err(_) = $crate::write_fmt_single_internal!(writer => $fmt) {
+						break 'block;
+					}
+				)*
+				$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
+			}
 		}
 	};
 
@@ -705,6 +883,7 @@ macro_rules! fmt_internal {
 
 		#[inline]
 		fn len_hint(&self) -> usize {
+			#[allow(unused_variables)]
 			let $name = self;
 			$crate::len_hint_fmt_internal!(
 				$($fmt)*
@@ -1041,7 +1220,7 @@ macro_rules! fmt_unit_struct {
 )]
 pub fn test() {
     use crate::{
-        write::Write,
+        write::{GetWriteInternal, Write},
         write_to::{Fmt, FmtDebug, ToString, WriteTo},
     };
 

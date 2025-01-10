@@ -320,6 +320,18 @@ impl WriteInfallible for String {
 // 	}
 // }
 
+pub trait GetWriteInternal: Write {
+    #[inline]
+    fn get_write_mut_internal(&mut self) -> &mut Self {
+        self
+    }
+    #[inline]
+    fn get_write_internal(&mut self) -> &mut Self {
+        self
+    }
+}
+impl<W> GetWriteInternal for W where W: Write + ?Sized {}
+
 pub trait Flush {
     type Error;
 
