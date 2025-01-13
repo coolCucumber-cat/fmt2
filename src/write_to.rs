@@ -27,6 +27,13 @@ impl WriteTo for str {
     }
 }
 
+impl<T> WriteTo for [T]
+where
+    T: WriteTo,
+{
+    crate::fmt! { [s] => "[" @..(s => |e| {e} ", ") "]" }
+}
+
 pub trait FmtAdvanced {
     type Target: WriteTo + ?Sized;
     fn fmt_advanced(&self) -> &Self::Target;
@@ -200,11 +207,12 @@ declare_std_write_to_wrapper_struct_internal! {
     StdPrecision<const PRECISION: u8>   FmtStdPrecision fmt_std_precision   => Display write_std_precision,
 }
 
-impl_fmt_trait_internal! { FmtStdDisplay    fmt_std_display => Fmt          fmt         => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 }
-impl_fmt_trait_internal! { FmtStdDebug      fmt_std_debug   => FmtDebug     fmt_debug   => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 }
-impl_fmt_trait_internal! { FmtStdBinary     fmt_std_binary  => FmtBinary    fmt_binary  => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
-impl_fmt_trait_internal! { FmtStdOctal      fmt_std_octal   => FmtOctal     fmt_octal   => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
-impl_fmt_trait_internal! { FmtStdHex        fmt_std_hex     => FmtHex       fmt_hex     => u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 }
+impl_fmt_trait_internal! { FmtStdDisplay    fmt_std_display => Fmt          fmt         => usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
+impl_fmt_trait_internal! { FmtStdDebug      fmt_std_debug   => FmtDebug     fmt_debug   => usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
+impl_fmt_trait_internal! { FmtStdBinary     fmt_std_binary  => FmtBinary    fmt_binary  => usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
+impl_fmt_trait_internal! { FmtStdOctal      fmt_std_octal   => FmtOctal     fmt_octal   => usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
+impl_fmt_trait_internal! { FmtStdHex        fmt_std_hex     => FmtHex       fmt_hex     => usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
+
 //
 // impl<'t, I, T> WriteTo for Iterator<I>
 // where
