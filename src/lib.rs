@@ -41,5 +41,3 @@ pub mod str;
 pub mod utils;
 pub mod write;
 pub mod write_to;
-
-pub use crate::enum_alias as x;

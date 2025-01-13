@@ -1,12 +1,17 @@
-use crate::write_to::FmtAdvanced;
+use crate::{utils::SafeTransmuteFrom, write_to::FmtAdvanced};
 
-pub trait FmtStr: FmtAdvanced<Target = str> {
+pub trait FmtStr {
+    fn fmt_str(&self) -> &str;
+}
+impl<T> FmtStr for T
+where
+    T: FmtAdvanced<Target = str> + ?Sized,
+{
     #[inline]
     fn fmt_str(&self) -> &str {
         self.fmt_advanced()
     }
 }
-impl<T> FmtStr for T where T: FmtAdvanced<Target = str> + ?Sized {}
 
 pub trait ConstStr {
     const CONST_STR: &'static str;
@@ -130,16 +135,27 @@ impl TransmuteToAsciiChar for core::ascii::Char {
     }
 }
 
-impl<T> FmtAdvanced for [T]
+impl<T> FmtStr for [T]
 where
-    T: TransmuteToAsciiChar,
+    core::ascii::Char: SafeTransmuteFrom<T>,
 {
-    type Target = str;
-    fn fmt_advanced(&self) -> &Self::Target {
+    fn fmt_str(&self) -> &str {
         let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
-        unsafe { core::str::from_utf8_unchecked(b) }
+        let var_name = unsafe { core::str::from_utf8_unchecked(b) };
+        var_name
     }
 }
+
+// impl<T> FmtAdvanced for [T]
+// where
+//     core::ascii::Char: SafeTransmuteFrom<T>,
+// {
+//     type Target = str;
+//     fn fmt_advanced(&self) -> &Self::Target {
+//         let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
+//         unsafe { core::str::from_utf8_unchecked(b) }
+//     }
+// }
 
 #[macro_export]
 macro_rules! impl_const_str_for {
