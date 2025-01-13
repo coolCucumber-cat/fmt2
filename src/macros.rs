@@ -864,7 +864,7 @@ macro_rules! fmt_internal {
 		output: { $(internal $fmt:tt)* },
 		args: {
 			mode: nocapture generate_methods {
-				name: $name:ident,
+				name: $name:pat,
 			},
 			ends_in_newline: $ends_in_newline:expr,
 		}
@@ -1139,7 +1139,7 @@ macro_rules! fmt {
 			}
 		}
 	};
-	{ [$name:ident] => $($tt:tt)* } => {
+	{ [$name:pat] => $($tt:tt)* } => {
 		$crate::fmt_internal! {
 			input: { $($tt)* },
 			output: {},

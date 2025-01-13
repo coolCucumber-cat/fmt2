@@ -31,7 +31,7 @@ impl<T> WriteTo for Debug<[T]>
 where
     T: WriteTo,
 {
-    crate::fmt! { [s] => "[" @..(s.0 => |e| {e} ", ") "]" }
+    crate::fmt! { [Debug(s)] => "[" @..(s => |e| {e} ", ") "]" }
 }
 
 pub trait FmtAdvanced {
