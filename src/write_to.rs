@@ -27,11 +27,11 @@ impl WriteTo for str {
     }
 }
 
-impl<T> WriteTo for [T]
+impl<T> WriteTo for Debug<[T]>
 where
     T: WriteTo,
 {
-    crate::fmt! { [s] => "[" @..(s => |e| {e} ", ") "]" }
+    crate::fmt! { [s] => "[" @..(s.0 => |e| {e} ", ") "]" }
 }
 
 pub trait FmtAdvanced {

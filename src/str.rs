@@ -135,27 +135,27 @@ impl TransmuteToAsciiChar for core::ascii::Char {
     }
 }
 
-impl<T> FmtStr for [T]
-where
-    core::ascii::Char: SafeTransmuteFrom<T>,
-{
-    fn fmt_str(&self) -> &str {
-        let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
-        let var_name = unsafe { core::str::from_utf8_unchecked(b) };
-        var_name
-    }
-}
-
-// impl<T> FmtAdvanced for [T]
+// impl<T> FmtStr for [T]
 // where
 //     core::ascii::Char: SafeTransmuteFrom<T>,
 // {
-//     type Target = str;
-//     fn fmt_advanced(&self) -> &Self::Target {
+//     fn fmt_str(&self) -> &str {
 //         let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
-//         unsafe { core::str::from_utf8_unchecked(b) }
+//         let var_name = unsafe { core::str::from_utf8_unchecked(b) };
+//         var_name
 //     }
 // }
+
+impl<T> FmtAdvanced for [T]
+where
+    core::ascii::Char: SafeTransmuteFrom<T>,
+{
+    type Target = str;
+    fn fmt_advanced(&self) -> &Self::Target {
+        let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
+        unsafe { core::str::from_utf8_unchecked(b) }
+    }
+}
 
 #[macro_export]
 macro_rules! impl_const_str_for {
