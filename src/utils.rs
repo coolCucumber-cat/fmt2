@@ -104,7 +104,7 @@ macro_rules! enum_alias {
         impl ::core::convert::TryFrom<$ty> for $name {
             type Error = ();
             #[inline]
-            fn try_from(value: $ty) -> Result<Self, Self::Error> {
+            fn try_from(value: $ty) -> ::core::result::Result<Self, Self::Error> {
                 match value {
                     $(
                         <$ty>::$variant0 => ::core::result::Result::Ok(<$name>::$variant0),
