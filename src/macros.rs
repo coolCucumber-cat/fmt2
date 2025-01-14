@@ -72,6 +72,7 @@ macro_rules! get_write_to_from_fmt_args {
 #[macro_export]
 macro_rules! write_fmt_single_internal {
 	($writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
+		#[allow(unused_imports)]
 		use $crate::write::Write as _;
 		$writer.write_advanced::<_, false, false>(
 			$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* },
@@ -97,6 +98,7 @@ macro_rules! write_fmt_single_internal {
 	}};
 
 	($writer:expr => [$($value:expr, )+]) => {{
+		#[allow(unused_imports)]
 		use $crate::write::Write as _;
 		const S: &str = ::core::concat!($($value),+);
 		if S.len() != 0 {
@@ -708,7 +710,7 @@ macro_rules! fmt_internal {
 	// (mode = nocapture write)
 	{
 		input: {},
-		output: { $(internal $fmt:tt)* },
+		output: { $($(internal $fmt:tt)+)? },
 		args: {
 			mode: nocapture write {
 				writer: $writer:expr,
@@ -718,23 +720,25 @@ macro_rules! fmt_internal {
 		}
 	} => {
 		'block: {
-			use $crate::write::GetWriteInternal as _;
-			#[allow(irrefutable_let_patterns)]
-			if let writer = $writer.get_write_internal() {
-				$(
-					if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!(writer => $fmt) {
-						break 'block ::core::result::Result::Err(err);
-					}
-				)*
-				$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
-			}
+			$(
+				use $crate::write::GetWriteInternal as _;
+				#[allow(irrefutable_let_patterns)]
+				if let writer = $writer.get_write_internal() {
+					$(
+						if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!(writer => $fmt) {
+							break 'block ::core::result::Result::Err(err);
+						}
+					)+
+					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
+				}
+			)?
 			::core::result::Result::Ok(())
 		}
 	};
 	// ignore error (mode = nocapture write)
 	{
 		input: {},
-		output: { $(internal $fmt:tt)* },
+		output: { $($(internal $fmt:tt)+)? },
 		args: {
 			mode: nocapture write {
 				writer: $writer:expr,
@@ -744,16 +748,18 @@ macro_rules! fmt_internal {
 		}
 	} => {
 		'block: {
-			use $crate::write::GetWriteInternal as _;
-			#[allow(irrefutable_let_patterns)]
-			if let writer = $writer.get_write_internal() {
-				$(
-					if let ::core::result::Result::Err(_) = $crate::write_fmt_single_internal!(writer => $fmt) {
-						break 'block;
-					}
-				)*
-				$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
-			}
+			$(
+				use $crate::write::GetWriteInternal as _;
+				#[allow(irrefutable_let_patterns)]
+				if let writer = $writer.get_write_internal() {
+					$(
+						if let ::core::result::Result::Err(_) = $crate::write_fmt_single_internal!(writer => $fmt) {
+							break 'block;
+						}
+					)+
+					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
+				}
+			)?
 		}
 	};
 
