@@ -160,276 +160,271 @@ macro_rules! len_hint_fmt_internal {
 macro_rules! fmt_internal {
 	// region: do recursion
 
-	// ends with ln
+	// square brackets
 	{
-		input: { $([$($prev:expr),* $(,)?])* ln $([$(""),* $(,)?])* },
-		output: { $($outputs:tt)* },
-		args: {
-			mode: $args0:tt $args1:tt $args2:tt,
-			ends_in_newline: $ends_in_newline:expr,
-		}
-	} => {
-		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* "\n"] },
-			output: { $($outputs)* },
-			args: {
-				mode: $args0 $args1 $args2,
-				ends_in_newline: true,
-			}
-		}
-	};
-	// ln
-	{
-		input: { $([$($prev:expr),* $(,)?])* ln $($inputs:tt)* },
+		input: { $([$($fmt_test:tt)*])+ $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* "\n"] $($inputs)* },
+			input: { $($($fmt_test)*)+ $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+
+	// ln
+	{
+		input: { $(@[$($prev:expr),* $(,)?])* ln $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { @[$($($prev, )*)* "\n"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// literal
 	{
-		input: { $([$($prev:expr),* $(,)?])* $literal:literal $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* $literal:literal $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $literal] $($inputs)* },
+			input: { @[$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// foreground ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @fg(@$fg:tt) { $($inputs0:tt)* } $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @fg(@$fg:tt) $inputs0:tt $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)*] @fg_no_reset(@$fg) $($inputs0)* @fg_no_reset(@reset) $($inputs)* },
+			input: { @[$($($prev, )*)*] @fg_no_reset(@$fg) $inputs0 @fg_no_reset(@reset) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// background ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @bg(@$bg:tt) { $($inputs0:tt)* } $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @bg(@$bg:tt) $inputs0:tt $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)*] @bg_no_reset(@$bg) $($inputs0)* @bg_no_reset(@reset) $($inputs)* },
+			input: { @[$($($prev, )*)*] @bg_no_reset(@$bg) $inputs0 @bg_no_reset(@reset) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// foreground ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @fg_no_reset(@$fg:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @fg_no_reset(@$fg:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ansi_set_style!(foreground $fg)] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ansi_set_style!(foreground $fg)] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// background ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @bg_no_reset(@$bg:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @bg_no_reset(@$bg:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ansi_set_style!(background $bg)] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ansi_set_style!(background $bg)] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor show ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_show $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_show $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?25h"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), "?25h"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor hide ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_hide $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_hide $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?25l"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), "?25l"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor move ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move(@$direction:tt, $count:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move(@$direction:tt, $count:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $count [$crate::ansi_direction_code!($direction)] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!()] $count @[$crate::ansi_direction_code!($direction)] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor move_to_x ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_x(@start) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to_x(@start) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, "G"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), 1, "G"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor move_to_x ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_x($x:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to_x($x:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $x ["G"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!()] $x @["G"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor move_to_y ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_y(@start) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to_y(@start) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, "d"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), 1, "d"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor move_to_y ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to_y($y:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to_y($y:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $y ["d"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!()] $y @["d"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// cursor move_to ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to(@start, @start) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to(@start, @start) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, ";", 1, "H"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), 1, ";", 1, "H"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to(@start, $y:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to(@start, $y:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $y [";", 1, "H"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!()] $y @[";", 1, "H"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, @start) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, @start) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), 1, ";"] $x ["H"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), 1, ";"] $x @["H"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	{
-		input: { $([$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, $y:tt) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @cursor_move_to($x:tt, $y:tt) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!()] $y [";"] $x ["H"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!()] $y @[";"] $x @["H"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// enter_alt_screen ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @enter_alt_screen $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @enter_alt_screen $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?1049h"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), "?1049h"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// leave_alt_screen ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @leave_alt_screen $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @leave_alt_screen $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), "?1049l"] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), "?1049l"] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// clear ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @clear(@$mode:ident) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @clear(@$mode:ident) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $crate::ANSI_START_macro!(), $crate::ansi_clear_code!($mode)] $($inputs)* },
+			input: { @[$($($prev, )*)* $crate::ANSI_START_macro!(), $crate::ansi_clear_code!($mode)] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// reset_line ansi
 	{
-		input: { $([$($prev:expr),* $(,)?])* @reset_line $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* @reset_line $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)*] @cursor_move_to_x(@start) @clear(@current_line) $($inputs)* },
+			input: { @[$($($prev, )*)*] @cursor_move_to_x(@start) @clear(@current_line) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// empty group of literals
 	{
-		input: { [$(""),* $(,)?] $($inputs:tt)* },
+		input: { @[$(""),* $(,)?] $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
@@ -441,7 +436,7 @@ macro_rules! fmt_internal {
 	};
 	// literal in a non-capturing expression (mode = capture)
 	{
-		input: { $([$($prev:expr),* $(,)?])* ($literal:literal $(;)?) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* ($literal:literal $(;)?) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
 			mode: capture $output_mode:tt $args:tt,
@@ -449,7 +444,7 @@ macro_rules! fmt_internal {
 		}
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $literal] $($inputs)* },
+			input: { @[$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
 			args: {
 				mode: capture $output_mode $args,
@@ -459,7 +454,7 @@ macro_rules! fmt_internal {
 	};
 	// literal in a capturing expression (mode = capture)
 	{
-		input: { $([$($prev:expr),* $(,)?])* { $field_name:ident $(: $ty:ty)? = $literal:literal $(;)? } $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* { $field_name:ident $(: $ty:ty)? = $literal:literal $(;)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
 			mode: capture $output_mode:tt $args:tt,
@@ -467,7 +462,7 @@ macro_rules! fmt_internal {
 		}
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $literal] $($inputs)* },
+			input: { @[$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
 			args: {
 				mode: capture $output_mode $args,
@@ -477,49 +472,37 @@ macro_rules! fmt_internal {
 	};
 	// literal in a non-capturing expression (mode = nocapture)
 	{
-		input: { $([$($prev:expr),* $(,)?])* { $literal:literal $(;)? } $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* { $literal:literal $(;)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($($prev, )*)* $literal] $($inputs)* },
+			input: { @[$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// 2 groups of literals
 	{
-		input: { [$($literal1:expr),* $(,)?] [$($literal2:expr),* $(,)?] $($inputs:tt)* },
+		input: { @[$($literal1:expr),* $(,)?] @[$($literal2:expr),* $(,)?] $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { [$($literal1, )* $($literal2),*] $($inputs)* },
+			input: { @[$($literal1, )* $($literal2),*] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
 	// literals
 	{
-		input: { [$($literal:expr),* $(,)?] $($inputs:tt)* },
+		input: { @[$($literal:expr),* $(,)?] $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
 			output: { $($outputs)* internal [$($literal, )*] },
-			args: $args
-		}
-	};
-	// literals map
-	{
-		input: { @map($map:expr) { [$($literal:expr),* $(,)?] } $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs)* },
-			output: { $($outputs)* internal { ($map)(::core::concat!($($literal, )*)) } },
 			args: $args
 		}
 	};
@@ -536,24 +519,6 @@ macro_rules! fmt_internal {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
 			output: { $($outputs)* internal { $value; $($($fmt_args)*)? } },
-			args: {
-				mode: capture $output_mode $args,
-				$($rest)*
-			}
-		}
-	};
-	// non-capturing expression map (mode = capture)
-	{
-		input: { @map($map:expr) { ($value:expr $(; $($fmt_args:tt)*)?) } $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: {
-			mode: capture $output_mode:tt $args:tt,
-			$($rest:tt)*
-		}
-	} => {
-		$crate::fmt_internal! {
-			input: { ($value:expr; $($($fmt_args)*)?) $($inputs)* },
-			output: { $($outputs)* },
 			args: {
 				mode: capture $output_mode $args,
 				$($rest)*
@@ -683,9 +648,9 @@ macro_rules! fmt_internal {
 		args: $args:tt
 	} => {
 		::core::compile_error!(::core::concat!(
-			"macros must be in [square brackets]\n",
+			"TODO: macros must be in @[square brackets]\n",
 			::core::stringify!($name), "!", ::core::stringify!($tt),
-		));
+		))
 	};
 	// error
 	{
@@ -694,7 +659,7 @@ macro_rules! fmt_internal {
 		args: $args:tt
 	} => {
 		::core::compile_error!(::core::concat!(
-			"expressions must be either valid literals or in (round), {curly} or [square] brackets\n",
+			"TODO: expressions must be either valid literals or in (round), {curly} or [square] brackets\n",
 			"see documentation for the `fmt` macro\n",
 			::core::stringify!($tt), "\n",
 			$(
@@ -853,7 +818,11 @@ macro_rules! fmt_internal {
 			W: $crate::write::Write + ?Sized,
 			{
 				let $name: &$ty = &self.0;
-				$crate::fmt!((? writer) => $($fmt)*)
+				$crate::write_fmt_return_internal!(
+					writer =>
+					$($fmt)*
+				);
+				::core::result::Result::Ok(())
 			}
 		}
 
@@ -1172,15 +1141,15 @@ macro_rules! fmt {
 #[macro_export]
 macro_rules! fmt_struct {
 	($fmt:tt => $name:ident; { $field0:ident : $tt0:tt $(, $field:ident : $tt:tt)* $(,)? }) => {
-		$crate::fmt! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " $tt0 $(", " [stringify!($field)] ": " $tt)* " }" }
+		$crate::fmt! { $fmt => @[stringify!($name)] " { " @[stringify!($field0)] ": " $tt0 $(", " @[stringify!($field)] ": " $tt)* " }" }
 	};
 
 	($fmt:tt => $name:ident; { $field0:ident $(, $field:ident)* $(,)? }) => {
-		$crate::fmt! { $fmt => [stringify!($name)] " { " [stringify!($field0)] ": " {$field0} $(", " [stringify!($field)] ": " {$field})* " }" }
+		$crate::fmt! { $fmt => @[stringify!($name)] " { " @[stringify!($field0)] ": " {$field0} $(", " @[stringify!($field)] ": " {$field})* " }" }
 	};
 
 	($fmt:tt => $name:ident; {}) => {
-		$crate::fmt! { $fmt => [stringify!($name)] " {}" }
+		$crate::fmt! { $fmt => @[stringify!($name)] " {}" }
 	};
 }
 
@@ -1198,11 +1167,11 @@ macro_rules! fmt_struct {
 #[macro_export]
 macro_rules! fmt_tuple_struct {
 	($fmt:tt => $($name:ident;)? ($tt0:tt $(, $tt:tt)* $(,)?) ) => {
-		$crate::fmt! { $fmt => $([stringify!($name)])? "(" $tt0 $(", " $tt)* ")" }
+		$crate::fmt! { $fmt => $(@[stringify!($name)])? "(" $tt0 $(", " $tt)* ")" }
 	};
 
 	($fmt:tt => $($name:ident;)? () ) => {
-		$crate::fmt! { $fmt => $([stringify!($name)])? "()" }
+		$crate::fmt! { $fmt => $(@[stringify!($name)])? "()" }
 	};
 }
 
@@ -1303,93 +1272,93 @@ pub fn test() {
 
     let a = "abc";
     let b = "def";
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} {b} "abc" ln [""]);
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} {b} "abc" ln [""]);
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert!(ends_in_newline(s));
     assert_eq!(s0, "123XYZabcabcdefabc\n");
 
     let a = &mut *String::from("abc");
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = String::from("abc");
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &String::from("abc");
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt!({noref} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({noref} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a: Box<str> = Box::from("abc");
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &3_i32;
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
-    let w = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
+    let w = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
     let s0 = ToString::to_string(w);
     assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
-    let w = fmt!({} => "123" [xyz!()] "abc" {a} "abc");
-    let w = fmt!({} => "123" [xyz!()] "abc" {a: i32} "abc");
+    let w = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let w = fmt!({} => "123" @[xyz!()] "abc" {a: i32} "abc");
     let s0 = ToString::to_string(w);
     assert_eq!(s0, "123XYZabc3abc");
 
-    const _S: &str = fmt!({} => "123" [xyz!()] "abc" "abc" 123);
+    const _S: &str = fmt!({} => "123" @[xyz!()] "abc" "abc" 123);
     assert_eq!(_S, "123XYZabcabc123");
 
     let a = 3_i32;
     const I: i32 = 32;
-    let s = fmt!({} => "123" [xyz!()] "abc" {a} "123" (I) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "123" (I) "abc");
     let s0 = ToString::to_string(s);
 
     let a = 3_i32;
-    let s = fmt!({} => "123" [xyz!()] "abc" {a;?} "123" (I;?) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a;?} "123" (I;?) "abc");
     let s0 = ToString::to_string(s);
 
     let a = 3_i32;
-    let s = fmt!({} => "123" [xyz!()] "abc" {a;h} "123" (I;b) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {a;h} "123" (I;b) "abc");
     let s0 = ToString::to_string(s);
 
     let a = 12.1234_f32;
     const F: f32 = 12.1234;
-    let s = fmt!({} => "999" [xyz!()] "abc" {a;std .3} "abc" (F;) "abc");
+    let s = fmt!({} => "999" @[xyz!()] "abc" {a;std .3} "abc" (F;) "abc");
     let s0 = ToString::to_string(s);
     // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
-    let s = fmt!({} => "123" [xyz!()] "abc" (&I) "abc" {d = 456});
+    let s = fmt!({} => "123" @[xyz!()] "abc" (&I) "abc" {d = 456});
     let s0 = ToString::to_string(s);
 
-    let s = fmt!({} => "123" [xyz!()] "abc" (const_fn(1, 2) ) "abc");
-    // let s = fmt!({ & } => "123" [xyz!()] "abc" (&const_fn(1, 2) ) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" (const_fn(1, 2) ) "abc");
+    // let s = fmt!({ & } => "123" @[xyz!()] "abc" (&const_fn(1, 2) ) "abc");
     let s0 = ToString::to_string(s);
 }
