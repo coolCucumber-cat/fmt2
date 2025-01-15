@@ -434,40 +434,16 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
-	// literal in a non-capturing expression (mode = capture)
+	// literal in a capturing expression (capturing syntax) (mode = capture)
 	{
-		input: { $(@[$($prev:expr),* $(,)?])* ($literal:literal $(;)?) $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* { @ $field_name:ident $(: $ty:ty)? = $literal:literal $(;)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
-		args: {
-			mode: capture $output_mode:tt $args:tt,
-			$($rest:tt)*
-		}
+		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { @[$($($prev, )*)* $literal] $($inputs)* },
 			output: { $($outputs)* },
-			args: {
-				mode: capture $output_mode $args,
-				$($rest)*
-			}
-		}
-	};
-	// literal in a capturing expression (mode = capture)
-	{
-		input: { $(@[$($prev:expr),* $(,)?])* { $field_name:ident $(: $ty:ty)? = $literal:literal $(;)? } $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: {
-			mode: capture $output_mode:tt $args:tt,
-			$($rest:tt)*
-		}
-	} => {
-		$crate::fmt_internal! {
-			input: { @[$($($prev, )*)* $literal] $($inputs)* },
-			output: { $($outputs)* },
-			args: {
-				mode: capture $output_mode $args,
-				$($rest)*
-			}
+			args: $args
 		}
 	};
 	// literal in a non-capturing expression (mode = nocapture)
@@ -507,27 +483,9 @@ macro_rules! fmt_internal {
 		}
 	};
 
-	// non-capturing expression (mode = capture)
-	{
-		input: { ($value:expr $(; $($fmt_args:tt)*)?) $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: {
-			mode: capture $output_mode:tt $args:tt,
-			$($rest:tt)*
-		}
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs)* },
-			output: { $($outputs)* internal { $value; $($($fmt_args)*)? } },
-			args: {
-				mode: capture $output_mode $args,
-				$($rest)*
-			}
-		}
-	};
 	// capturing expression with generic type (mode = capture)
 	{
-		input: { { $field_name:ident = $value:expr $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
+		input: { { @ $field_name:ident = $value:expr $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
 			mode: capture generate {
@@ -555,7 +513,7 @@ macro_rules! fmt_internal {
 	};
 	// capturing expression with concrete type (mode = capture)
 	{
-		input: { { $field_name:ident : $ty:ty = $value:expr $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
+		input: { { @ $field_name:ident : $ty:ty = $value:expr $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: {
 			mode: capture $output_mode:tt $args:tt,
@@ -573,22 +531,28 @@ macro_rules! fmt_internal {
 			}
 		}
 	};
-	// capturing expression using variable as name and as value (mode = capture)
+	// capturing expression (capturing syntax only, may be non-capturing) using variable as name and as value
 	{
-		input: { { $field_name:ident $(: $ty:ty)? $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
+		input: { { @ $field_name:ident $(: $ty:ty)? $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
 		output: { $($outputs:tt)* },
-		args: {
-			mode: capture $output_mode:tt $args:tt,
-			$($rest:tt)*
-		}
+		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { { $field_name $(: $ty)? = $field_name; $($($fmt_args)*)? } $($inputs)* },
+			input: { { @ $field_name $(: $ty)? = $field_name; $($($fmt_args)*)? } $($inputs)* },
 			output: { $($outputs)* },
-			args: {
-				mode: capture $output_mode $args,
-				$($rest)*
-			}
+			args: $args
+		}
+	};
+	// non-capturing expression (with capturing syntax) (mode = nocapture)
+	{
+		input: { { @ $field_name:ident $(: $ty:ty)? = $value:expr $(; $($fmt_args:tt)*)? } $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal { $value; $($($fmt_args)*)? } },
+			args: $args
 		}
 	};
 	// non-capturing expression (mode = nocapture)
@@ -1244,7 +1208,7 @@ pub fn test() {
     }
 
     let struct_ = Struct { a: 12, b: true };
-    let s = fmt_struct!({} => Struct; { a: {a = struct_.a}, b: {b = struct_.b} });
+    let s = fmt_struct!({} => Struct; { a: {@a=struct_.a}, b: {@b=struct_.b} });
     let s0 = s.to_string();
     assert_eq!(s0, "Struct { a: 12, b: true }");
 
@@ -1253,15 +1217,15 @@ pub fn test() {
     assert_eq!(s0, "123sussy rizzfalse");
 
     let tuple = Tuple(99, true);
-    let s = fmt_tuple_struct!({} => Tuple; ({a = tuple.0}, {b = tuple.1}));
+    let s = fmt_tuple_struct!({} => Tuple; ({@a=tuple.0}, {@b=tuple.1}));
     let s0 = s.to_string();
     assert_eq!(s0, "Tuple(99, true)");
 
-    const S: &str = fmt_struct!({} => Struct; { a: {a: i32 = 234}, b: {b = false} });
+    const S: &str = fmt_struct!({} => Struct; { a: {@a:i32=234}, b: {@b=false} });
     let s0 = ToString::to_string(S);
     assert_eq!(s0, "Struct { a: 234, b: false }");
 
-    const S1: &str = fmt_tuple_struct!({} => Tuple; ({a = 234}, {b = false}));
+    const S1: &str = fmt_tuple_struct!({} => Tuple; ({@a=234}, {@b=false}));
     assert_eq!(S1, "Tuple(234, false)");
 
     macro_rules! xyz {
@@ -1272,61 +1236,61 @@ pub fn test() {
 
     let a = "abc";
     let b = "def";
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} {b} "abc" ln [""]);
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} {@b} "abc" ln [""]);
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert!(ends_in_newline(s));
     assert_eq!(s0, "123XYZabcabcdefabc\n");
 
     let a = &mut *String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &mut String::from("abc");
-    let s = fmt!({noref} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({noref} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(&s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a: Box<str> = Box::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0.len(), s.len_hint());
     assert_eq!(s0, "123XYZabcabcabc");
 
     let a = &3_i32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(s);
     assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
-    let w = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
+    let w = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
     let s0 = ToString::to_string(w);
     assert_eq!(s0, "123XYZabc3abc");
 
     let a = 3_i32;
-    let w = fmt!({} => "123" @[xyz!()] "abc" {a} "abc");
-    let w = fmt!({} => "123" @[xyz!()] "abc" {a: i32} "abc");
+    let w = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    // let w = fmt!({} => "123" @[xyz!()] "abc" {@a:i32} "abc");
     let s0 = ToString::to_string(w);
     assert_eq!(s0, "123XYZabc3abc");
 
@@ -1335,30 +1299,30 @@ pub fn test() {
 
     let a = 3_i32;
     const I: i32 = 32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a} "123" (I) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "123" {I} "abc");
     let s0 = ToString::to_string(s);
 
     let a = 3_i32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a;?} "123" (I;?) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a;?} "123" {I;?} "abc");
     let s0 = ToString::to_string(s);
 
     let a = 3_i32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {a;h} "123" (I;b) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {@a;h} "123" {I;b} "abc");
     let s0 = ToString::to_string(s);
 
     let a = 12.1234_f32;
     const F: f32 = 12.1234;
-    let s = fmt!({} => "999" @[xyz!()] "abc" {a;std .3} "abc" (F;) "abc");
+    let s = fmt!({} => "999" @[xyz!()] "abc" {@a;std .3} "abc" {F;} "abc");
     let s0 = ToString::to_string(s);
     // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
-    let s = fmt!({} => "123" @[xyz!()] "abc" (&I) "abc" {d = 456});
+    let s = fmt!({} => "123" @[xyz!()] "abc" {I} "abc" {@d=456});
     let s0 = ToString::to_string(s);
 
-    let s = fmt!({} => "123" @[xyz!()] "abc" (const_fn(1, 2) ) "abc");
+    let s = fmt!({} => "123" @[xyz!()] "abc" {const_fn(1, 2)} "abc");
     // let s = fmt!({ & } => "123" @[xyz!()] "abc" (&const_fn(1, 2) ) "abc");
     let s0 = ToString::to_string(s);
 }
