@@ -1,6 +1,6 @@
 use crate::{utils::SafeTransmuteFrom, write_to::FmtAdvanced};
 
-pub trait FmtStr {
+pub trait FmtStr: FmtAdvanced<Target = str> {
     fn fmt_str(&self) -> &str;
 }
 impl<T> FmtStr for T
