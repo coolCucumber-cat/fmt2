@@ -59,9 +59,9 @@ where
 macro_rules! enum_alias {
     {
         $(#[$meta:meta])*
-        enum $name:ident: $ty:ty = $({
+        $vis:vis enum $name:ident: $ty:ty = {$(
             $variant0:ident $(| $variant:ident)*
-        })?;
+        )?};
     } => {
         #[repr(u8)]
         #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -71,6 +71,13 @@ macro_rules! enum_alias {
                 $variant0 = <$ty>::$variant0 as u8,
                 $($variant = <$ty>::$variant as u8, )*
             )?
+        }
+
+        impl $name {
+            #[inline]
+            $vis const fn as_u8(self) -> u8 {
+                self as u8
+            }
         }
 
         unsafe impl $crate::utils::SafeTransmuteFrom<$name> for $ty {

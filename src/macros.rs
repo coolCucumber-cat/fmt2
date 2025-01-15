@@ -69,42 +69,116 @@ macro_rules! get_write_to_from_fmt_args {
 	}};
 }
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! handle_write_error {
+    ($result:expr => { break $lifetime:lifetime err }) => {
+        if let ::core::result::Result::Err(err) = $result {
+            break $lifetime::core::result::Result::Err(err);
+        }
+    };
+    ($result:expr => { break $lifetime:lifetime }) => {
+        if let ::core::result::Result::Err(_) = $result {
+            break $lifetime;
+        }
+    };
+    ($result:expr => { return err }) => {
+        if let ::core::result::Result::Err(err) = $result {
+            return ::core::result::Result::Err(err);
+        }
+    };
+    ($result:expr => { return }) => {
+        if let ::core::result::Result::Err(_) = $result {
+            return;
+        }
+    };
+    ($result:expr => { ? }) => {
+        $result?;
+    };
+}
+
 #[macro_export]
 macro_rules! write_fmt_single_internal {
-	($writer:expr => { $value:expr; $($fmt_args:tt)* }) => {{
+	($writer:expr => { $value:expr; $($fmt_args:tt)* } => $handle_error_args:tt) => {{
 		#[allow(unused_imports)]
 		use $crate::write::Write as _;
-		$writer.write_advanced::<_, false, false>(
-			$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* },
-		)
+		$crate::handle_write_error! {
+			$writer.write_advanced::<_, false, false>(
+				$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* },
+			)
+			=> $handle_error_args
+		}
 	}};
 
-	($writer:expr => (@($($stmt:stmt)*))) => {{
+	($writer:expr => (@($($stmt:stmt)*)) => $handle_error_args:tt) => {
 		$($stmt)*
-	}};
+	};
 
-	($writer:expr => (@..($iterator:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*))) => {'block_2: {
+	($writer:expr => (@..($iterator:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*)) => $handle_error_args:tt) => {{
 		use ::core::iter::IntoIterator as _;
 		for $name $(: $ty)? in $iterator.into_iter() {
-			if let ::core::result::Result::Err(err) = $crate::fmt! { (? $writer) => $($fmt)* } {
-				break 'block_2 ::core::result::Result::Err(err);
+			$crate::fmt_internal! {
+				input: { $($fmt)* },
+				output: {},
+				args: {
+					mode: nocapture write_inner {
+						writer: $writer,
+						handle_error_args: $handle_error_args,
+					},
+					ends_in_newline: false,
+				}
 			}
 		}
-		::core::result::Result::Ok(())
 	}};
 
-	($writer:expr => [$("", )*]) => {{
+	($writer:expr => (@..join($iterator:expr => $join:tt => |$name:ident $(: $ty:ty)?| $($fmt:tt)*)) => $handle_error_args:tt) => {{
+		use ::core::iter::Iterator as _;
+		use ::core::iter::IntoIterator as _;
+
+		#[allow(irrefutable_let_patterns)]
+		if let mut iterator = $iterator.into_iter() {
+			if let ::core::option::Option::Some($name) = iterator.next() {
+				$crate::fmt_internal! {
+					input: { $($fmt)* },
+					output: {},
+					args: {
+						mode: nocapture write_inner {
+							writer: $writer,
+							handle_error_args: $handle_error_args,
+						},
+						ends_in_newline: false,
+					}
+				}
+				for $name $(: $ty)? in iterator {
+					$crate::fmt_internal! {
+						input: { $join $($fmt)* },
+						output: {},
+						args: {
+							mode: nocapture write_inner {
+								writer: $writer,
+								handle_error_args: $handle_error_args,
+							},
+							ends_in_newline: false,
+						}
+					}
+				}
+			}
+		}
+	}};
+
+	($writer:expr => [$("", )*] => $handle_error_args:tt) => {{
 		::core::compile_error!("unreachable. dev error or bug using macro");
 	}};
 
-	($writer:expr => [$($value:expr, )+]) => {{
+	($writer:expr => [$($value:expr, )+] => $handle_error_args:tt) => {{
 		#[allow(unused_imports)]
 		use $crate::write::Write as _;
 		const S: &str = ::core::concat!($($value),+);
 		if S.len() != 0 {
-			$writer.write_str(S)
-		} else {
-			::core::result::Result::Ok(())
+			$crate::handle_write_error! {
+				$writer.write_str(S)
+				=> $handle_error_args
+			}
 		}
 	}};
 }
@@ -125,6 +199,10 @@ macro_rules! len_hint_fmt_single_internal {
 		0
 	}};
 
+	((@..join($iterator:expr => $join:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*))) => {{
+		0
+	}};
+
 	([$("", )*]) => {{
 		::core::compile_error!("unreachable. dev error or bug using macro");
 	}};
@@ -138,9 +216,7 @@ macro_rules! len_hint_fmt_single_internal {
 macro_rules! write_fmt_return_internal {
 	($writer:expr => $($fmt:tt)*) => {
 		$(
-			if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!($writer => $fmt) {
-				return ::core::result::Result::Err(err);
-			}
+			$crate::write_fmt_single_internal! { $writer => $fmt => { return err } }
 		)*
 	};
 }
@@ -576,31 +652,31 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
-			output: { $($outputs)* internal (@($($stmt)*; ::core::result::Result::Ok(()))) },
-			args: $args
-		}
-	};
-	// do
-	{
-		input: { @?($($stmt:stmt)*) $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs)* },
 			output: { $($outputs)* internal (@($($stmt)*)) },
 			args: $args
 		}
 	};
 	// iter
 	{
-		input: { @..($($tt:tt)*) $($inputs:tt)* },
+		input: { @..($iterator:expr => $($tt:tt)*) $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
-			output: { $($outputs)* internal (@..($($tt)*)) },
+			output: { $($outputs)* internal (@..($iterator => $($tt)*)) },
+			args: $args
+		}
+	};
+	// iter join
+	{
+		input: { @..join($iterator:expr => $join:tt => $($tt:tt)*) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@..join($iterator => $join => $($tt)*)) },
 			args: $args
 		}
 	};
@@ -654,9 +730,7 @@ macro_rules! fmt_internal {
 				#[allow(irrefutable_let_patterns)]
 				if let writer = $writer.get_write_internal() {
 					$(
-						if let ::core::result::Result::Err(err) = $crate::write_fmt_single_internal!(writer => $fmt) {
-							break 'block ::core::result::Result::Err(err);
-						}
+						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block err } }
 					)+
 					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
 				}
@@ -682,14 +756,28 @@ macro_rules! fmt_internal {
 				#[allow(irrefutable_let_patterns)]
 				if let writer = $writer.get_write_internal() {
 					$(
-						if let ::core::result::Result::Err(_) = $crate::write_fmt_single_internal!(writer => $fmt) {
-							break 'block;
-						}
+						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block } }
 					)+
 					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
 				}
 			)?
 		}
+	};
+	// (mode = nocapture write_inner)
+	{
+		input: {},
+		output: { $(internal $fmt:tt)* },
+		args: {
+			mode: nocapture write_inner {
+				writer: $writer:expr,
+				handle_error_args: $handle_error_args:tt,
+			},
+			ends_in_newline: $ends_in_newline:expr,
+		}
+	} => {
+		$(
+			$crate::write_fmt_single_internal! { $writer => $fmt => $handle_error_args }
+		)*
 	};
 
 	// empty string (mode = _ generate)
@@ -1086,16 +1174,6 @@ macro_rules! fmt {
 				mode: nocapture generate_methods {
 					name: $name,
 				},
-				ends_in_newline: false,
-			}
-		}
-	};
-	{ [] => $($tt:tt)* } => {
-		$crate::fmt_internal! {
-			input: { $($tt)* },
-			output: {},
-			args: {
-				mode: nocapture generate_methods_nameless {},
 				ends_in_newline: false,
 			}
 		}
