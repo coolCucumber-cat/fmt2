@@ -152,7 +152,7 @@ macro_rules! write_fmt_single_internal {
 
 		#[allow(irrefutable_let_patterns)]
 		if let mut iterator = $iterator.into_iter() {
-			if let ::core::option::Option::Some($name) = ::core::iter::Iterator::next(iterator) {
+			if let ::core::option::Option::Some($name) = ::core::iter::Iterator::next(&mut iterator) {
 				$crate::fmt_internal! {
 					input: { $($fmt)* },
 					output: {},
