@@ -105,10 +105,9 @@ macro_rules! handle_write_error {
 #[macro_export]
 macro_rules! write_fmt_single_internal {
 	($writer:expr => { $value:expr; $($fmt_args:tt)* } => $handle_error_args:tt) => {{
-		#[allow(unused_imports)]
-		use $crate::write::Write as _;
 		$crate::handle_write_error! {
-			$writer.write_advanced::<_, false, false>(
+			$crate::write::Write::write_advanced::<_, false, false>(
+				$writer,
 				$crate::get_write_to_from_fmt_args! { $value; $($fmt_args)* },
 			)
 			=> $handle_error_args
@@ -137,13 +136,11 @@ macro_rules! write_fmt_single_internal {
 	}};
 	($writer:expr => (@..const($iterator:expr => $string:expr)) => $handle_error_args:tt) => {{
 		use ::core::iter::ExactSizeIterator;
-		#[allow(unused_imports)]
-		use $crate::write::Write as _;
 		let s: &str = $string;
 		if s.len() != 0 {
 			for _ in $iterator {
 				$crate::handle_write_error! {
-					$writer.write_str(s)
+					$crate::write::Write::write_str($writer, s)
 					=> $handle_error_args
 				}
 			}
@@ -151,12 +148,11 @@ macro_rules! write_fmt_single_internal {
 	}};
 
 	($writer:expr => (@..join($iterator:expr => $join:tt => |$name:ident $(: $ty:ty)?| $($fmt:tt)*)) => $handle_error_args:tt) => {{
-		use ::core::iter::Iterator as _;
 		use ::core::iter::IntoIterator as _;
 
 		#[allow(irrefutable_let_patterns)]
 		if let mut iterator = $iterator.into_iter() {
-			if let ::core::option::Option::Some($name) = iterator.next() {
+			if let ::core::option::Option::Some($name) = ::core::iter::Iterator::next(iterator) {
 				$crate::fmt_internal! {
 					input: { $($fmt)* },
 					output: {},
@@ -190,12 +186,10 @@ macro_rules! write_fmt_single_internal {
 	}};
 
 	($writer:expr => [$($value:expr, )+] => $handle_error_args:tt) => {{
-		#[allow(unused_imports)]
-		use $crate::write::Write as _;
 		const S: &str = ::core::concat!($($value),+);
 		if S.len() != 0 {
 			$crate::handle_write_error! {
-				$writer.write_str(S)
+				$crate::write::Write::write_str($writer, S)
 				=> $handle_error_args
 			}
 		}
@@ -292,6 +286,18 @@ macro_rules! fmt_internal {
 	} => {
 		$crate::fmt_internal! {
 			input: { @[$($($prev, )*)* $literal] $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// macro
+	{
+		input: { $(@[$($prev:expr),* $(,)?])* $macro_name:ident ! $macro_args:tt $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { @[$($($prev, )*)* $macro_name ! $macro_args] $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
