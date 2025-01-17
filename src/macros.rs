@@ -927,7 +927,7 @@ macro_rules! fmt_internal {
 	} => {{
 		let mut string = String::with_capacity($crate::len_hint_fmt_internal!($($fmt)*));
 		$(
-			$crate::write_fmt_single_internal! { string => $fmt => { ! } }
+			$crate::write_fmt_single_internal! { &mut string => $fmt => { ! } }
 		)*
 		string
 	}};
