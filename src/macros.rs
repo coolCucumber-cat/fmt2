@@ -95,6 +95,11 @@ macro_rules! handle_write_error {
     ($result:expr => { ? }) => {
         $result?;
     };
+    ($result:expr => { ! }) => {
+        match $result {
+            ::core::result::Result::Ok(()) => {}
+        }
+    };
 }
 
 #[macro_export]
@@ -126,6 +131,20 @@ macro_rules! write_fmt_single_internal {
 						handle_error_args: $handle_error_args,
 					},
 					ends_in_newline: false,
+				}
+			}
+		}
+	}};
+	($writer:expr => (@..const($iterator:expr => $string:expr)) => $handle_error_args:tt) => {{
+		use ::core::iter::ExactSizeIterator;
+		#[allow(unused_imports)]
+		use $crate::write::Write as _;
+		let s: &str = $string;
+		if s.len() != 0 {
+			for _ in $iterator {
+				$crate::handle_write_error! {
+					$writer.write_str(s)
+					=> $handle_error_args
 				}
 			}
 		}
@@ -197,6 +216,10 @@ macro_rules! len_hint_fmt_single_internal {
 
 	((@..($iterator:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*))) => {{
 		0
+	}};
+	((@..const($iterator:expr => $string:expr))) => {{
+		use ::core::iter::ExactSizeIterator;
+		$string.len() * $iterator.len()
 	}};
 
 	((@..join($iterator:expr => $join:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*))) => {{
@@ -668,6 +691,18 @@ macro_rules! fmt_internal {
 			args: $args
 		}
 	};
+	// iter const
+	{
+		input: { @..const($iterator:expr => $($tt:tt)*) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@..const($iterator => $($tt)*)) },
+			args: $args
+		}
+	};
 	// iter join
 	{
 		input: { @..join($iterator:expr => $join:tt => $($tt:tt)*) $($inputs:tt)* },
@@ -780,6 +815,7 @@ macro_rules! fmt_internal {
 		)*
 	};
 
+
 	// empty string (mode = _ generate)
 	{
 		input: {},
@@ -803,20 +839,6 @@ macro_rules! fmt_internal {
 		::core::concat!($($literals),*)
 	};
 
-	// // (mode = nocapture generate)
-	// {
-	// 	input: {},
-	// 	output: { internal { $value:expr; $(fmt_args:tt)* } },
-	// 	args: {
-	// 		mode: nocapture generate {
-	// 			name: $name:ident,
-	// 			ty: $ty:ty,
-	// 			value: $main_value:expr,
-	// 		}
-	// 	}
-	// } => {
-	// 	$crate::get_write_to_from_fmt_args! { $value; $fmt_args }
-	// };
 
 	// error (mode = nocapture generate)
 	{
@@ -885,6 +907,25 @@ macro_rules! fmt_internal {
 
 		new($value)
 	}};
+
+	// (mode = nocapture generate { to_string })
+	{
+		input: {},
+		output: { $(internal $fmt:tt)* },
+		args: {
+			mode: nocapture generate {
+				to_string
+			},
+			ends_in_newline: $ends_in_newline:expr,
+		}
+	} => {{
+		let mut string = String::with_capacity($crate::len_hint_fmt_internal!($($fmt)*));
+		$(
+			$crate::write_fmt_single_internal! { string => $fmt => { ! } }
+		)*
+		string
+	}};
+
 	// (mode = nocapture generate_methods)
 	{
 		input: {},
@@ -918,7 +959,7 @@ macro_rules! fmt_internal {
 		}
 	};
 
-	// one capturing expression (mode = capture write)
+	// one capturing expression (mode = capture generate)
 	{
 		input: {},
 		output: {
@@ -1080,6 +1121,18 @@ macro_rules! fmt {
 					lifetime: 'a,
 					optional_lifetime:,
 					reference: { & },
+				},
+				ends_in_newline: false,
+			}
+		}
+	};
+	{ { str } => $($tt:tt)* } => {
+		$crate::fmt_internal! {
+			input: { $($tt)* },
+			output: {},
+			args: {
+				mode: nocapture generate {
+					to_string
 				},
 				ends_in_newline: false,
 			}
