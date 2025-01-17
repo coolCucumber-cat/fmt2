@@ -126,14 +126,18 @@ macro_rules! enum_alias {
     };
 }
 
-// #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-// enum X {
-//     A,
-//     B,
-//     C,
+// macro_rules! deref {
+//     ($value:expr => $ty:path) => {{
+//         trait TempDoDeref: $ty {
+//             fn temp_do_deref(&self) -> &Self {
+//                 self
+//             }
+//         }
+//         impl<T> TempDoDeref for T where T: $ty + ?Sized {}
+//         $value.temp_do_deref()
+//     }};
 // }
-//
-// enum_alias! { #[doc(alias = "sussy")] #[doc = "alias"] enum Y: X = { C | B }; }
+
 #[inline]
 #[must_use]
 pub fn has_newlines(s: &str) -> bool {
