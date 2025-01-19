@@ -1145,6 +1145,9 @@ macro_rules! fmt {
 		}
 	};
 	{ { noref } => $($tt:tt)* } => {
+		$crate::fmt! { { no_ref } => $($tt)* }
+	};
+	{ { no_ref } => $($tt:tt)* } => {
 		$crate::fmt_internal! {
 			input: { $($tt)* },
 			output: {},
