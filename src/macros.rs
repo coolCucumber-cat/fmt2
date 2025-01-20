@@ -1307,7 +1307,7 @@ macro_rules! fmt_unit_struct2 {
 pub fn test() {
     use crate::{
         write::{GetWriteInternal, Write},
-        write_to::{Fmt, FmtDebug, ToString, WriteTo},
+        write_to::{Fmt, FmtAdvanced, FmtDebug, ToString, WriteTo},
     };
 
     use core::ops::Deref;
@@ -1373,6 +1373,9 @@ pub fn test() {
             "XYZ"
         };
     }
+
+    let vec1: Vec<usize> = vec![1, 2, 3];
+    let s = fmt! { {} => "213" {@vec2 = vec1;?} {@vec1;?}};
 
     let a = "abc";
     let b = "def";
