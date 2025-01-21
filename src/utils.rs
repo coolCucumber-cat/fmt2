@@ -125,7 +125,7 @@ macro_rules! enum_alias {
             type Error = ();
             #[inline]
             fn try_from(value: $ty) -> ::core::result::Result<Self, Self::Error> {
-                Self::from_parent(value)
+                Self::try_from_parent(value)
             }
         }
     };
