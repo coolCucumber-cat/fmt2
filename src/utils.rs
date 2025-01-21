@@ -74,7 +74,7 @@ macro_rules! enum_alias {
             }
 
             #[inline]
-            $vis const fn into_parent(self) -> ::core::result::Result<$ty, ()> {
+            $vis const fn into_parent(self) -> $ty {
                 #[cfg(debug_assertions)]
                 let self_dev: Self = match self {
                     $(
@@ -93,7 +93,7 @@ macro_rules! enum_alias {
             }
 
             #[inline]
-            $vis const fn try_from_parent(value: $ty) -> Self {
+            $vis const fn try_from_parent(value: $ty) -> ::core::result::Result<Self, ()> {
                 match value {
                     $(
                         <$ty>::$variant0 => ::core::result::Result::Ok(<$name>::$variant0),
