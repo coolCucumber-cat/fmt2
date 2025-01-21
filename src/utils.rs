@@ -76,7 +76,7 @@ macro_rules! enum_alias {
             #[inline]
             $vis const fn into_parent(self) -> ::core::result::Result<$ty, ()> {
                 #[cfg(debug_assertions)]
-                let self_dev: Self = match value {
+                let self_dev: Self = match self {
                     $(
                         <$name>::$variant0 => <$ty>::$variant0,
                         $(
@@ -84,7 +84,7 @@ macro_rules! enum_alias {
                         )*
                     )?
                 };
-                let self_prod: Self = unsafe { ::core::mem::transmute(value) };
+                let self_prod: Self = unsafe { ::core::mem::transmute(self) };
                 #[cfg(debug_assertions)]
                 {
                     ::core::debug_assert_eq!(self_dev, self_prod, ::core::concat!(::core::stringify!(::core::convert::From<$name> for $ty)));
