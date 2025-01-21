@@ -28,32 +28,26 @@ where
     }
 }
 
-// unsafe impl<T, U> SafeTransmuteFrom<&[T]> for &[U]
-// where
-//     U: SafeTransmuteFrom<T>,
-// {
-//     fn safe_transmute_from(value: &[T]) -> Self {
-//         unsafe { &*(core::ptr::from_ref(value) as *const [U]) }
-//     }
-// }
-//
-// unsafe impl<T, U> SafeTransmuteFrom<&T> for &U
-// where
-//     U: SafeTransmuteFrom<T>,
-// {
-//     fn safe_transmute_from(value: &T) -> Self {
-//         unsafe { &*(core::ptr::from_ref(value) as *const U) }
-//     }
-// }
-//
-// unsafe impl<T, U> SafeTransmuteFrom<&mut T> for &mut U
-// where
-//     U: SafeTransmuteFrom<T>,
-// {
-//     fn safe_transmute_from(value: &mut T) -> Self {
-//         unsafe { &mut *(core::ptr::from_mut(value) as *mut U) }
-//     }
-// }
+pub fn safe_transmute<Src, Dst>(src: Src) -> Dst
+where
+    Dst: SafeTransmuteFrom<Src>,
+{
+    Dst::safe_transmute_from(src)
+}
+
+pub fn safe_transmute_ref<Src, Dst>(src: &Src) -> &Dst
+where
+    Dst: SafeTransmuteFrom<Src>,
+{
+    unsafe { &*(src as *const Src as *const Dst) }
+}
+
+pub fn safe_transmute_mut<Src, Dst>(src: &mut Src) -> &mut Dst
+where
+    Dst: SafeTransmuteFrom<Src>,
+{
+    unsafe { &mut *(src as *mut Src as *mut Dst) }
+}
 
 #[macro_export]
 macro_rules! enum_alias {
@@ -78,18 +72,9 @@ macro_rules! enum_alias {
             $vis const fn as_u8(self) -> u8 {
                 self as u8
             }
-        }
 
-        unsafe impl $crate::utils::SafeTransmuteFrom<$name> for $ty {
             #[inline]
-            fn safe_transmute_from(value: $name) -> Self {
-                unsafe { ::core::mem::transmute(value) }
-            }
-        }
-
-        impl ::core::convert::From<$name> for $ty {
-            #[inline]
-            fn from(value: $name) -> Self {
+            $vis const fn into_parent(self) -> ::core::result::Result<$ty, ()> {
                 #[cfg(debug_assertions)]
                 let self_dev: Self = match value {
                     $(
@@ -106,12 +91,9 @@ macro_rules! enum_alias {
                 }
                 self_prod
             }
-        }
 
-        impl ::core::convert::TryFrom<$ty> for $name {
-            type Error = ();
             #[inline]
-            fn try_from(value: $ty) -> ::core::result::Result<Self, Self::Error> {
+            $vis const fn try_from_parent(value: $ty) -> Self {
                 match value {
                     $(
                         <$ty>::$variant0 => ::core::result::Result::Ok(<$name>::$variant0),
@@ -121,6 +103,29 @@ macro_rules! enum_alias {
                         _ => ::core::result::Result::Err(()),
                     )?
                 }
+            }
+
+        }
+
+        unsafe impl $crate::utils::SafeTransmuteFrom<$name> for $ty {
+            #[inline]
+            fn safe_transmute_from(value: $name) -> Self {
+                unsafe { ::core::mem::transmute(value) }
+            }
+        }
+
+        impl ::core::convert::From<$name> for $ty {
+            #[inline]
+            fn from(value: $name) -> Self {
+                $name::into_parent(value)
+            }
+        }
+
+        impl ::core::convert::TryFrom<$ty> for $name {
+            type Error = ();
+            #[inline]
+            fn try_from(value: $ty) -> ::core::result::Result<Self, Self::Error> {
+                Self::from_parent(value)
             }
         }
     };
