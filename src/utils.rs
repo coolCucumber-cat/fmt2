@@ -75,23 +75,7 @@ macro_rules! enum_alias {
 
             #[inline]
             $vis const fn into_parent(self) -> $ty {
-                #[cfg(debug_assertions)]
-                let self_dev: $ty = match self {
-                    $(
-                        <$name>::$variant0 => <$ty>::$variant0,
-                        $(
-                            <$name>::$variant => <$ty>::$variant,
-                        )*
-                    )?
-                };
-                let self_prod: $ty = unsafe { ::core::mem::transmute(self) };
-                #[cfg(debug_assertions)]
-                {
-                    if self_dev != self_prod {
-                        ::core::panic!(::core::concat!(::core::stringify!(::core::convert::From<$name> for $ty)));
-                    }
-                }
-                self_prod
+                unsafe { ::core::mem::transmute(self) }
             }
 
             #[inline]
@@ -119,7 +103,21 @@ macro_rules! enum_alias {
         impl ::core::convert::From<$name> for $ty {
             #[inline]
             fn from(value: $name) -> Self {
-                $name::into_parent(value)
+                #[cfg(debug_assertions)]
+                let self_dev: Self = match value {
+                    $(
+                        <$name>::$variant0 => <$ty>::$variant0,
+                        $(
+                            <$name>::$variant => <$ty>::$variant,
+                        )*
+                    )?
+                };
+                let self_prod: Self = unsafe { ::core::mem::transmute(value) };
+                #[cfg(debug_assertions)]
+                {
+                    ::core::debug_assert_eq!(self_dev, self_prod, ::core::concat!(::core::stringify!(::core::convert::From<$name> for $ty)));
+                }
+                self_prod
             }
         }
 
