@@ -255,12 +255,12 @@ macro_rules! fmt_internal {
 
 	// square brackets
 	{
-		input: { $([$($fmt_test:tt)*])+ $($inputs:tt)* },
+		input: { $(@[$($prev:expr),* $(,)?])* $([$($fmt_test:tt)*])+ $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { $($($fmt_test)*)+ $($inputs)* },
+			input: { $(@[$($prev),*])* $($($fmt_test)*)+ $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -1344,7 +1344,7 @@ pub fn test() {
     }
 
     impl WriteTo for Struct2 {
-        fmt! { [s] => {s.a2} "sussy rizz" {s.b2} }
+        fmt! { [s] => {s.a2} @fg(@red) ["sussy rizz"] {s.b2} }
     }
 
     let struct_ = Struct { a: 12, b: true };
