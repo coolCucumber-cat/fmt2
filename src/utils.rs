@@ -87,7 +87,9 @@ macro_rules! enum_alias {
                 let self_prod: $ty = unsafe { ::core::mem::transmute(self) };
                 #[cfg(debug_assertions)]
                 {
-                    ::core::debug_assert_eq!(self_dev, self_prod, ::core::concat!(::core::stringify!(::core::convert::From<$name> for $ty)));
+                    if self_dev != self_prod {
+                        ::core::panic!(::core::concat!(::core::stringify!(::core::convert::From<$name> for $ty)));
+                    }
                 }
                 self_prod
             }
