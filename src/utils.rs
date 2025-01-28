@@ -281,6 +281,8 @@ pub fn first_line_no_debug_assertion(s: &str) -> &str {
 mod tests {
     use core::ascii::Char;
 
+    use crate::write_to::FmtAdvanced;
+
     use super::*;
 
     #[test]
@@ -309,6 +311,10 @@ mod tests {
         assert_eq!(
             safe_transmute_mut::<Char, u8>(&mut Char::CapitalE),
             &mut b'E'
+        );
+        assert_eq!(
+            [Char::CapitalC, Char::Digit3, Char::Colon].fmt_advanced(),
+            "C3:"
         );
     }
 }
