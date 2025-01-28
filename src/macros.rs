@@ -7,63 +7,79 @@ macro_rules! get_write_to_from_fmt_args {
 		$value
 	};
     { $value:expr; advanced } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtAdvanced as _;
 		$value.fmt_advanced()
     }};
     { $value:expr; str } => {{
+		#[allow(unused_imports)]
         use $crate::str::FmtStr as _;
 		$value.fmt_str()
     }};
     { $value:expr; str first_line } => {{
+		#[allow(unused_imports)]
         use $crate::str::FmtStr as _;
 		$crate::utils::first_line($value.fmt_str())
     }};
     { $value:expr; str first_line no_debug_assertion } => {{
+		#[allow(unused_imports)]
         use $crate::str::FmtStr as _;
 		$crate::utils::first_line_no_debug_assertion($value.fmt_str())
     }};
     { $value:expr; .. } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtIterator as _;
+		#[allow(unused_imports)]
 		use ::core::iter::IntoIterator as _;
 		$value.into_iter().fmt_iterator()
     }};
     { $value:expr; } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::Fmt as _;
 		$value.fmt()
     }};
     { $value:expr; ? } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtDebug as _;
 		$value.fmt_debug()
     }};
     { $value:expr; b } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtBinary as _;
 		$value.fmt_binary()
     }};
     { $value:expr; h } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtHex as _;
 		$value.fmt_hex()
     }};
     { $value:expr; .$PRECISION:expr } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtPrecision as _;
 		$value.fmt_precision::<$PRECISION>()
     }};
     { $value:expr; std } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdDisplay as _;
 		$value.fmt_std_display()
     }};
     { $value:expr; std? } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdDebug as _;
 		$value.fmt_std_debug()
     }};
     { $value:expr; std b } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtStdBinary as _;
 		$value.fmt_std_binary()
     }};
     { $value:expr; std h } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdHex as _;
 		$value.fmt_std_hex()
     }};
 	{ $value:expr; std .$PRECISION:expr } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdPrecision as _;
 		$value.fmt_std_precision::<$PRECISION>()
 	}};
@@ -1311,13 +1327,6 @@ pub fn test() {
     };
 
     use core::ops::Deref;
-
-    const fn ends_in_newline<W>(w: &W) -> bool
-    where
-        W: WriteTo + ?Sized,
-    {
-        W::ENDS_IN_NEWLINE
-    }
 
     struct Struct {
         a: i32,
