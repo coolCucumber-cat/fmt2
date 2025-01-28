@@ -63,9 +63,8 @@ where
     #[inline]
     fn safe_transmute_ref_from(value: &[T]) -> &Self {
         let u_ptr = core::ptr::from_ref(value);
-        let s_ptr = u_ptr as *const [u8];
-        let s: &[u8] = unsafe { &*(s_ptr) };
-        unsafe { core::str::from_utf8_unchecked(s) }
+        let s_ptr = u_ptr as *const [u8] as *const str;
+        unsafe { &*s_ptr }
     }
 }
 unsafe impl<U> SafeTransmuteMutFrom<[U]> for str
@@ -75,9 +74,8 @@ where
     #[inline]
     fn safe_transmute_mut_from(value: &mut [U]) -> &mut Self {
         let u_ptr = core::ptr::from_mut(value);
-        let s_ptr = u_ptr as *mut [u8];
-        let s: &mut [u8] = unsafe { &mut *(s_ptr) };
-        unsafe { core::str::from_utf8_unchecked_mut(s) }
+        let s_ptr = u_ptr as *mut [core::ascii::Char] as *mut str;
+        unsafe { &mut *s_ptr }
     }
 }
 
@@ -140,9 +138,9 @@ pub const fn safe_transmute_slice<Src, Dst>(src: &[Src]) -> &[Dst]
 where
     Dst: SafeTransmuteFrom<Src>,
 {
-    let u_ptr = core::ptr::from_ref(src);
-    let t_ptr = u_ptr as *const [Dst];
-    unsafe { &*t_ptr }
+    let src_ptr = core::ptr::from_ref(src);
+    let dst_ptr = src_ptr as *const [Dst];
+    unsafe { &*dst_ptr }
 }
 
 #[inline]
@@ -150,9 +148,9 @@ pub const fn safe_transmute_slice_mut<Src, Dst>(src: &mut [Src]) -> &mut [Dst]
 where
     Dst: SafeTransmuteFrom<Src>,
 {
-    let u_ptr = core::ptr::from_mut(src);
-    let t_ptr = u_ptr as *mut [Dst];
-    unsafe { &mut *t_ptr }
+    let src_ptr = core::ptr::from_mut(src);
+    let dst_ptr = src_ptr as *mut [Dst];
+    unsafe { &mut *dst_ptr }
 }
 
 #[macro_export]
@@ -196,7 +194,6 @@ macro_rules! enum_alias {
                     )?
                 }
             }
-
         }
 
         unsafe impl $crate::utils::SafeTransmuteFrom<$name> for $ty {}
@@ -285,11 +282,10 @@ pub fn first_line(s: &str) -> &str {
 #[inline]
 #[must_use]
 pub fn first_line_no_debug_assertion(s: &str) -> &str {
-    let s = match s.find('\n') {
+    match s.find('\n') {
         Some(i) => unsafe { s.get_unchecked(..i) },
         None => s,
-    };
-    s
+    }
 }
 
 #[allow(unused)]
