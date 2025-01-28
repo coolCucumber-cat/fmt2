@@ -33,9 +33,7 @@ where
 {
     #[inline]
     fn safe_transmute_ref_from(value: &U) -> &Self {
-        let u_ptr = core::ptr::from_ref(value);
-        let t_ptr: *const Self = u_ptr.cast();
-        unsafe { &*t_ptr }
+        safe_transmute_ref_const(value)
     }
 }
 
@@ -53,9 +51,7 @@ where
 {
     #[inline]
     fn safe_transmute_mut_from(value: &mut U) -> &mut Self {
-        let u_ptr = core::ptr::from_mut(value);
-        let t_ptr: *mut Self = u_ptr.cast();
-        unsafe { &mut *t_ptr }
+        safe_transmute_mut_const(value)
     }
 }
 
@@ -120,7 +116,27 @@ where
 }
 
 #[inline]
-pub fn safe_transmute_slice<Src, Dst>(src: &[Src]) -> &[Dst]
+pub const fn safe_transmute_ref_const<Src, Dst>(src: &Src) -> &Dst
+where
+    Dst: SafeTransmuteRefFrom<Src>,
+{
+    let src_ptr = core::ptr::from_ref(src);
+    let dst_ptr: *const Dst = src_ptr.cast();
+    unsafe { &*dst_ptr }
+}
+
+#[inline]
+pub const fn safe_transmute_mut_const<Src, Dst>(src: &mut Src) -> &mut Dst
+where
+    Dst: SafeTransmuteMutFrom<Src>,
+{
+    let src_ptr = core::ptr::from_mut(src);
+    let dst_ptr: *mut Dst = src_ptr.cast();
+    unsafe { &mut *dst_ptr }
+}
+
+#[inline]
+pub const fn safe_transmute_slice<Src, Dst>(src: &[Src]) -> &[Dst]
 where
     Dst: SafeTransmuteFrom<Src>,
 {
@@ -130,7 +146,7 @@ where
 }
 
 #[inline]
-pub fn safe_transmute_slice_mut<Src, Dst>(src: &mut [Src]) -> &mut [Dst]
+pub const fn safe_transmute_slice_mut<Src, Dst>(src: &mut [Src]) -> &mut [Dst]
 where
     Dst: SafeTransmuteFrom<Src>,
 {

@@ -124,28 +124,6 @@ impl FmtAdvanced for bool {
     }
 }
 
-pub trait TransmuteToAsciiChar: Sized {
-    fn transmute_to_ascii_char(self) -> core::ascii::Char;
-}
-
-impl TransmuteToAsciiChar for core::ascii::Char {
-    #[inline]
-    fn transmute_to_ascii_char(self) -> core::ascii::Char {
-        self
-    }
-}
-
-// impl<T> FmtStr for [T]
-// where
-//     core::ascii::Char: SafeTransmuteFrom<T>,
-// {
-//     fn fmt_str(&self) -> &str {
-//         let b: &[u8] = unsafe { &*(core::ptr::from_ref(self) as *const [u8]) };
-//         let var_name = unsafe { core::str::from_utf8_unchecked(b) };
-//         var_name
-//     }
-// }
-
 impl<T> FmtAdvanced for [T]
 where
     str: SafeTransmuteRefFrom<[T]>,
