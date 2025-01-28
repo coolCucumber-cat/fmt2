@@ -1,52 +1,142 @@
 /// # Safety
 /// Only implement this trait if transmuting from `T` to `Self` and vice versa is safe
-pub unsafe trait SafeTransmuteFrom<T>: Sized {
+pub unsafe trait SafeTransmuteFrom<T>
+where
+    T: ?Sized,
+{
+}
+unsafe impl<T> SafeTransmuteFrom<T> for T where T: ?Sized {}
+
+/// # Safety
+/// Only implement this trait if transmuting from `T` to `Self` and vice versa is safe
+pub unsafe trait SafeTransmuteSizedFrom<T>: SafeTransmuteFrom<T> + Sized {
     fn safe_transmute_from(value: T) -> Self;
 }
-
-unsafe impl<T> SafeTransmuteFrom<T> for T {
+unsafe impl<T> SafeTransmuteSizedFrom<T> for T {
     #[inline]
     fn safe_transmute_from(value: T) -> Self {
         value
     }
 }
 
-unsafe impl SafeTransmuteFrom<core::ascii::Char> for u8 {
+/// # Safety
+/// Only implement this trait if transmuting from `T` to `Self` and vice versa is safe
+pub unsafe trait SafeTransmuteRefFrom<T>: SafeTransmuteFrom<T>
+where
+    T: ?Sized,
+{
+    fn safe_transmute_ref_from(value: &T) -> &Self;
+}
+unsafe impl<T, U> SafeTransmuteRefFrom<U> for T
+where
+    T: SafeTransmuteFrom<U>,
+{
+    #[inline]
+    fn safe_transmute_ref_from(value: &U) -> &Self {
+        let u_ptr = core::ptr::from_ref(value);
+        let t_ptr: *const Self = u_ptr.cast();
+        unsafe { &*t_ptr }
+    }
+}
+
+/// # Safety
+/// Only implement this trait if transmuting from `T` to `Self` and vice versa is safe
+pub unsafe trait SafeTransmuteMutFrom<T>: SafeTransmuteFrom<T>
+where
+    T: ?Sized,
+{
+    fn safe_transmute_mut_from(value: &mut T) -> &mut Self;
+}
+unsafe impl<T, U> SafeTransmuteMutFrom<U> for T
+where
+    T: SafeTransmuteFrom<U>,
+{
+    #[inline]
+    fn safe_transmute_mut_from(value: &mut U) -> &mut Self {
+        let u_ptr = core::ptr::from_mut(value);
+        let t_ptr: *mut Self = u_ptr.cast();
+        unsafe { &mut *t_ptr }
+    }
+}
+
+unsafe impl<U> SafeTransmuteFrom<[U]> for str where core::ascii::Char: SafeTransmuteSizedFrom<U> {}
+unsafe impl<T> SafeTransmuteRefFrom<[T]> for str
+where
+    core::ascii::Char: SafeTransmuteSizedFrom<T>,
+{
+    #[inline]
+    fn safe_transmute_ref_from(value: &[T]) -> &Self {
+        let u_ptr = core::ptr::from_ref(value);
+        let s_ptr = u_ptr as *const [u8];
+        let s: &[u8] = unsafe { &*(s_ptr) };
+        unsafe { core::str::from_utf8_unchecked(s) }
+    }
+}
+unsafe impl<U> SafeTransmuteMutFrom<[U]> for str
+where
+    core::ascii::Char: SafeTransmuteSizedFrom<U>,
+{
+    #[inline]
+    fn safe_transmute_mut_from(value: &mut [U]) -> &mut Self {
+        let u_ptr = core::ptr::from_mut(value);
+        let s_ptr = u_ptr as *mut [u8];
+        let s: &mut [u8] = unsafe { &mut *(s_ptr) };
+        unsafe { core::str::from_utf8_unchecked_mut(s) }
+    }
+}
+
+unsafe impl SafeTransmuteFrom<core::ascii::Char> for u8 {}
+unsafe impl SafeTransmuteSizedFrom<core::ascii::Char> for u8 {
     #[inline]
     fn safe_transmute_from(value: core::ascii::Char) -> Self {
         value.to_u8()
     }
 }
 
-unsafe impl<T> SafeTransmuteFrom<&[T]> for &str
-where
-    core::ascii::Char: SafeTransmuteFrom<T>,
-{
-    fn safe_transmute_from(value: &[T]) -> Self {
-        let b: &[u8] = unsafe { &*(core::ptr::from_ref(value) as *const [u8]) };
-        unsafe { core::str::from_utf8_unchecked(b) }
-    }
-}
-
+#[inline]
 pub fn safe_transmute<Src, Dst>(src: Src) -> Dst
 where
-    Dst: SafeTransmuteFrom<Src>,
+    Dst: SafeTransmuteSizedFrom<Src>,
 {
     Dst::safe_transmute_from(src)
 }
 
+#[inline]
 pub fn safe_transmute_ref<Src, Dst>(src: &Src) -> &Dst
 where
-    Dst: SafeTransmuteFrom<Src>,
+    Dst: SafeTransmuteRefFrom<Src> + ?Sized,
+    Src: ?Sized,
 {
-    unsafe { &*(src as *const Src as *const Dst) }
+    Dst::safe_transmute_ref_from(src)
 }
 
+#[inline]
 pub fn safe_transmute_mut<Src, Dst>(src: &mut Src) -> &mut Dst
+where
+    Dst: SafeTransmuteMutFrom<Src> + ?Sized,
+    Src: ?Sized,
+{
+    Dst::safe_transmute_mut_from(src)
+}
+
+#[inline]
+pub fn safe_transmute_slice<Src, Dst>(src: &[Src]) -> &[Dst]
 where
     Dst: SafeTransmuteFrom<Src>,
 {
-    unsafe { &mut *(src as *mut Src as *mut Dst) }
+    let u_ptr = core::ptr::from_ref(src);
+    let t_ptr = u_ptr as *const [Dst];
+    unsafe { &*t_ptr }
+}
+
+#[inline]
+pub fn safe_transmute_slice_mut<Src, Dst>(src: &mut [Src]) -> &mut [Dst]
+where
+    Dst: SafeTransmuteFrom<Src>,
+{
+    let u_ptr = core::ptr::from_mut(src);
+    let t_ptr = u_ptr as *mut [Dst];
+    unsafe { &mut *t_ptr }
 }
 
 #[macro_export]
@@ -93,7 +183,8 @@ macro_rules! enum_alias {
 
         }
 
-        unsafe impl $crate::utils::SafeTransmuteFrom<$name> for $ty {
+        unsafe impl $crate::utils::SafeTransmuteFrom<$name> for $ty {}
+        unsafe impl $crate::utils::SafeTransmuteSizedFrom<$name> for $ty {
             #[inline]
             fn safe_transmute_from(value: $name) -> Self {
                 unsafe { ::core::mem::transmute(value) }
@@ -188,6 +279,8 @@ pub fn first_line_no_debug_assertion(s: &str) -> &str {
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
+    use core::ascii::Char;
+
     use super::*;
 
     #[test]
@@ -200,5 +293,22 @@ mod tests {
         assert_eq!(first_line_no_debug_assertion("\nabc"), "");
         assert_eq!(first_line_no_debug_assertion("\n"), "");
         assert_eq!(first_line_no_debug_assertion(""), "");
+    }
+
+    #[test]
+    fn test_safe_transmute() {
+        assert_eq!(
+            safe_transmute_ref::<[Char], str>(&[Char::CapitalA, Char::Digit5, Char::SmallI]),
+            "A5i"
+        );
+        assert_eq!(safe_transmute_ref::<Char, u8>(&Char::CapitalE), &b'E');
+        assert_eq!(
+            safe_transmute_mut::<[Char], str>(&mut [Char::CapitalA, Char::Digit5, Char::SmallI]),
+            "A5i"
+        );
+        assert_eq!(
+            safe_transmute_mut::<Char, u8>(&mut Char::CapitalE),
+            &mut b'E'
+        );
     }
 }
