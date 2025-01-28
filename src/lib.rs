@@ -29,6 +29,7 @@
     fmt_internals,
     formatting_options,
     ascii_char,
+    ascii_char_variants,
     // concat_idents,
     // try_blocks,
     // specialization,
