@@ -54,9 +54,15 @@ macro_rules! get_write_to_from_fmt_args {
 		$value.fmt_hex()
     }};
     { $value:expr; .$PRECISION:expr } => {{
-		#[allow(unused_imports)]
-        use $crate::write_to::FmtPrecision as _;
-		$value.fmt_precision::<$PRECISION>()
+		trait TempDeref {
+			fn temp_deref(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }>;
+		}
+		impl<T> TempDeref for T where T: $crate::write_to::FmtPrecision<{ $PRECISION }> {
+			fn temp_deref(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }> {
+				self
+			}
+		}
+		$crate::write_to::FmtPrecision::<{ $PRECISION }>::fmt_precision($value.temp_deref())
     }};
     { $value:expr; std } => {{
 		#[allow(unused_imports)]
@@ -79,9 +85,15 @@ macro_rules! get_write_to_from_fmt_args {
 		$value.fmt_std_hex()
     }};
 	{ $value:expr; std .$PRECISION:expr } => {{
-		#[allow(unused_imports)]
-		use $crate::write_to::FmtStdPrecision as _;
-		$value.fmt_std_precision::<$PRECISION>()
+		trait TempDeref {
+			fn temp_deref(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }>;
+		}
+		impl<T> TempDeref for T where T: $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
+			fn temp_deref(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
+				self
+			}
+		}
+		$crate::write_to::FmtStdPrecision::<{ $PRECISION }>::fmt_std_precision($value.temp_deref())
 	}};
 }
 
@@ -1323,7 +1335,7 @@ macro_rules! fmt_unit_struct2 {
 pub fn test() {
     use crate::{
         write::{GetWriteInternal, Write},
-        write_to::{Fmt, FmtAdvanced, FmtDebug, ToString, WriteTo},
+        write_to::{Fmt, FmtAdvanced, FmtDebug, Precision, StdPrecision, ToString, WriteTo},
     };
 
     use core::ops::Deref;
@@ -1476,4 +1488,7 @@ pub fn test() {
     let s = fmt!({} => "123" @[xyz!()] "abc" {const_fn(1, 2)} "abc");
     // let s = fmt!({ & } => "123" @[xyz!()] "abc" (&const_fn(1, 2) ) "abc");
     let s0 = ToString::to_string(s);
+
+    let b = fmt! { {} => {@a = true;.5}};
+    assert_eq!(b.to_string(), "true ");
 }
