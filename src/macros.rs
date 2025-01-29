@@ -54,15 +54,17 @@ macro_rules! get_write_to_from_fmt_args {
 		$value.fmt_hex()
     }};
     { $value:expr; .$PRECISION:expr } => {{
-		trait TempDeref {
-			fn temp_deref(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }>;
+		#[allow(non_camel_case_types)]
+		trait TempDeref_Unique_20250129_1242_5jfkf {
+			fn temp_deref_unique_20250129_1245_hr3un(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }>;
 		}
-		impl<T> TempDeref for T where T: $crate::write_to::FmtPrecision<{ $PRECISION }> {
-			fn temp_deref(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }> {
+		impl<T> TempDeref_Unique_20250129_1242_5jfkf for T where T: $crate::write_to::FmtPrecision<{ $PRECISION }> {
+			#[inline]
+			fn temp_deref_unique_20250129_1245_hr3un(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }> {
 				self
 			}
 		}
-		$crate::write_to::FmtPrecision::<{ $PRECISION }>::fmt_precision($value.temp_deref())
+		$crate::write_to::FmtPrecision::<{ $PRECISION }>::fmt_precision($value.temp_deref_unique_20250129_1245_hr3un())
     }};
     { $value:expr; std } => {{
 		#[allow(unused_imports)]
@@ -85,15 +87,17 @@ macro_rules! get_write_to_from_fmt_args {
 		$value.fmt_std_hex()
     }};
 	{ $value:expr; std .$PRECISION:expr } => {{
-		trait TempDeref {
-			fn temp_deref(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }>;
+		#[allow(non_camel_case_types)]
+		trait TempDeref_Unique_20250129_1244_9j6as {
+			fn temp_deref_unique_20250129_1246_uid7d(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }>;
 		}
-		impl<T> TempDeref for T where T: $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
-			fn temp_deref(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
+		impl<T> TempDeref_Unique_20250129_1244_9j6as for T where T: $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
+			#[inline]
+			fn temp_deref_unique_20250129_1246_uid7d(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
 				self
 			}
 		}
-		$crate::write_to::FmtStdPrecision::<{ $PRECISION }>::fmt_std_precision($value.temp_deref())
+		$crate::write_to::FmtStdPrecision::<{ $PRECISION }>::fmt_std_precision($value.temp_deref_unique_20250129_1246_uid7d())
 	}};
 }
 
