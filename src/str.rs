@@ -1,4 +1,4 @@
-use crate::{utils::SafeTransmuteRefFrom, write_to::FmtAdvanced};
+use crate::write_to::FmtAdvanced;
 
 pub trait FmtStr: FmtAdvanced<Target = str> {
     fn fmt_str(&self) -> &str;
@@ -126,11 +126,11 @@ impl FmtAdvanced for bool {
 
 impl<T> FmtAdvanced for [T]
 where
-    str: SafeTransmuteRefFrom<[T]>,
+    str: transmute_guard::SafeTransmuteRefFrom<[T]>,
 {
     type Target = str;
     fn fmt_advanced(&self) -> &Self::Target {
-        crate::utils::safe_transmute_ref(self)
+        transmute_guard::safe_transmute_ref(self)
     }
 }
 
