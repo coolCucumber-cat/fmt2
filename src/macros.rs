@@ -253,14 +253,26 @@ macro_rules! len_hint_fmt_internal {
 macro_rules! fmt_internal {
 	// region: do recursion
 
-	// square brackets
+	// empty group of literals
 	{
-		input: { $(@[$($prev:expr),* $(,)?])* $([$($fmt_test:tt)*])+ $($inputs:tt)* },
+		input: { @[$(""),* $(,)?] $($inputs:tt)* },
 		output: { $($outputs:tt)* },
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { $(@[$($prev),*])* $($($fmt_test)*)+ $($inputs)* },
+			input: { $($inputs)* },
+			output: { $($outputs)* },
+			args: $args
+		}
+	};
+	// square brackets
+	{
+		input: { $(@[$($prev:expr),* $(,)?])* $([$($fmt:tt)*])+ $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $(@[$($prev),*])* $($($fmt)*)+ $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -309,7 +321,7 @@ macro_rules! fmt_internal {
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { @[$($($prev, )*)*] @fg_no_reset(@$fg) $inputs0 @fg_no_reset(@reset) $($inputs)* },
+			input: { $(@[$($prev, )*])* @fg_no_reset(@$fg) $inputs0 @fg_no_reset(@reset) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -321,7 +333,7 @@ macro_rules! fmt_internal {
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { @[$($($prev, )*)*] @bg_no_reset(@$bg) $inputs0 @bg_no_reset(@reset) $($inputs)* },
+			input: { $(@[$($prev, )*])* @bg_no_reset(@$bg) $inputs0 @bg_no_reset(@reset) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
@@ -522,23 +534,12 @@ macro_rules! fmt_internal {
 		args: $args:tt
 	} => {
 		$crate::fmt_internal! {
-			input: { @[$($($prev, )*)*] @cursor_move_to_x(@start) @clear(@current_line) $($inputs)* },
+			input: { $(@[$($prev, )*])* @cursor_move_to_x(@start) @clear(@current_line) $($inputs)* },
 			output: { $($outputs)* },
 			args: $args
 		}
 	};
-	// empty group of literals
-	{
-		input: { @[$(""),* $(,)?] $($inputs:tt)* },
-		output: { $($outputs:tt)* },
-		args: $args:tt
-	} => {
-		$crate::fmt_internal! {
-			input: { $($inputs)* },
-			output: { $($outputs)* },
-			args: $args
-		}
-	};
+
 	// literal in a capturing expression (capturing syntax) (mode = capture)
 	{
 		input: { $(@[$($prev:expr),* $(,)?])* { @ $field_name:ident $(: $ty:ty)? = $literal:literal $(;)? } $($inputs:tt)* },
