@@ -161,6 +161,15 @@ macro_rules! write_fmt_single_internal {
 	($writer:expr => (@($($stmt:stmt)*)) => $handle_error_args:tt) => {
 		$($stmt)*
 	};
+	($writer:expr => (@fn($f:expr)) => $handle_error_args:tt) => {
+		($f)($writer);
+	};
+	($writer:expr => (@fn?($f:expr)) => $handle_error_args:tt) => {
+		$crate::handle_write_error! {
+			($f)($writer)
+			=> $handle_error_args
+		}
+	};
 
 	($writer:expr => (@..($iterator:expr => |$name:ident $(: $ty:ty)?| $($fmt:tt)*)) => $handle_error_args:tt) => {{
 		use ::core::iter::IntoIterator as _;
@@ -249,6 +258,9 @@ macro_rules! len_hint_fmt_single_internal {
 	};
 
 	((@($($stmt:stmt)*))) => {
+		0
+	};
+	((@fn$(?)?($f:expr))) => {
 		0
 	};
 
@@ -726,6 +738,28 @@ macro_rules! fmt_internal {
 		$crate::fmt_internal! {
 			input: { $($inputs)* },
 			output: { $($outputs)* internal (@($($stmt)*)) },
+			args: $args
+		}
+	};
+	{
+		input: { @fn($f:expr) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@fn($f)) },
+			args: $args
+		}
+	};
+	{
+		input: { @fn?($f:expr) $($inputs:tt)* },
+		output: { $($outputs:tt)* },
+		args: $args:tt
+	} => {
+		$crate::fmt_internal! {
+			input: { $($inputs)* },
+			output: { $($outputs)* internal (@fn?($f)) },
 			args: $args
 		}
 	};

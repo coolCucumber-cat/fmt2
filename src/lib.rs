@@ -38,6 +38,7 @@
 )]
 pub mod ansi;
 pub mod macros;
+pub mod screen_area;
 pub mod str;
 pub mod utils;
 pub mod write;
