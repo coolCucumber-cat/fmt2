@@ -107,6 +107,9 @@ macro_rules! handle_write_error {
     ($result:expr => { break $lifetime:lifetime { $($tt:tt)* } }) => {
 		$crate::handle_write_error! { $result => { break $lifetime $($tt)* } }
     };
+    ($result:expr => { break $lifetime:lifetime ! }) => {
+		$crate::handle_write_error! { $result => { ! } }
+    };
     ($result:expr => { break $lifetime:lifetime ? }) => {
 		if let ::core::result::Result::Err(err) = $result {
 			break $lifetime::core::result::Result::Err(err);
@@ -120,6 +123,9 @@ macro_rules! handle_write_error {
 
 	($result:expr => { return { $($tt:tt)* } }) => {
 		$crate::handle_write_error! { $result => { return $($tt)* } }
+	};
+	($result:expr => { return ! }) => {
+		$crate::handle_write_error! { $result => { ! } }
 	};
     ($result:expr => { return ? }) => {
         if let ::core::result::Result::Err(err) = $result {
@@ -794,27 +800,42 @@ macro_rules! fmt_internal {
 	// (mode = nocapture write)
 	{
 		input: {},
-		output: { $($(internal $fmt:tt)+)? },
+		output: {},
 		args: {
 			mode: nocapture write {
 				writer: $writer:expr,
 				err: $err:tt,
 				result: $result:expr,
+				label: $label:lifetime,
 			},
 			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
-		'block: {
-			$(
-				use $crate::write::GetWriteInternal as _;
-				#[allow(irrefutable_let_patterns)]
-				if let writer = $writer.get_write_internal() {
-					$(
-						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block $err } }
-					)+
-					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
-				}
-			)?
+		$result
+	};
+	// (mode = nocapture write)
+	{
+		input: {},
+		output: { $(internal $fmt:tt)+ },
+		args: {
+			mode: nocapture write {
+				writer: $writer:expr,
+				handle_err: $handle_err:tt,
+				result: $result:expr,
+				label: $($label:lifetime)?,
+			},
+			ends_in_newline: $ends_in_newline:expr,
+		}
+	} => {
+		$($label: )? {
+			use $crate::write::GetWriteInternal as _;
+			#[allow(irrefutable_let_patterns)]
+			if let writer = $writer.get_write_internal() {
+				$(
+					$crate::write_fmt_single_internal! { writer => $fmt => $handle_err }
+				)+
+				$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
+			}
 			$result
 		}
 	};
@@ -1223,8 +1244,24 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture write {
 					writer: $writer,
-					err: { ? },
+					handle_err: { break 'block ? },
 					result: ::core::result::Result::Ok(()),
+					label: 'block,
+				},
+				ends_in_newline: false,
+			}
+		}
+	};
+	{ (! $writer:expr) => $($tt:tt)* } => {
+		$crate::fmt_internal! {
+			input: { $($tt)* },
+			output: {},
+			args: {
+				mode: nocapture write {
+					writer: $writer,
+					handle_err: { ! },
+					result: (),
+					label:,
 				},
 				ends_in_newline: false,
 			}
@@ -1237,8 +1274,9 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture write {
 					writer: $writer,
-					err: {},
+					handle_err: { break 'block },
 					result: (),
+					label: 'block,
 				},
 				ends_in_newline: false,
 			}
@@ -1468,8 +1506,8 @@ pub fn test() {
 
     let mut string = String::new();
     let a = 12.1234_f32;
-    let a = fmt!((? string) => "999" @[xyz!()] "abc" {a} "abc" {F;} "abc");
-
+    let a = fmt!((string) => "999" @[xyz!()] "abc" {a} "abc" {F;} "abc");
+    let a = 12.12;
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
