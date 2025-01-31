@@ -105,25 +105,6 @@ where
 //     }
 // }
 
-impl FmtStaticStrImpl for bool {
-    #[inline]
-    fn fmt_static_str_impl(&self) -> &'static str {
-        if *self {
-            "true"
-        } else {
-            "false"
-        }
-    }
-}
-
-impl FmtAdvanced for bool {
-    type Target = str;
-    #[inline]
-    fn fmt_advanced(&self) -> &Self::Target {
-        self.fmt_static_str_impl()
-    }
-}
-
 impl<T> FmtAdvanced for [T]
 where
     str: transmute_guard::SafeTransmuteRefFrom<[T]>,

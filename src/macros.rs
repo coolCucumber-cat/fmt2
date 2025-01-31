@@ -7,82 +7,127 @@ macro_rules! get_write_to_from_fmt_args {
 		$value
 	};
     { $value:expr; advanced } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtAdvanced as _;
 		$value.fmt_advanced()
     }};
     { $value:expr; str } => {{
+		#[allow(unused_imports)]
         use $crate::str::FmtStr as _;
 		$value.fmt_str()
     }};
     { $value:expr; str first_line } => {{
+		#[allow(unused_imports)]
         use $crate::str::FmtStr as _;
 		$crate::utils::first_line($value.fmt_str())
     }};
     { $value:expr; str first_line no_debug_assertion } => {{
+		#[allow(unused_imports)]
         use $crate::str::FmtStr as _;
 		$crate::utils::first_line_no_debug_assertion($value.fmt_str())
     }};
     { $value:expr; .. } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtIterator as _;
+		#[allow(unused_imports)]
 		use ::core::iter::IntoIterator as _;
 		$value.into_iter().fmt_iterator()
     }};
     { $value:expr; } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::Fmt as _;
 		$value.fmt()
     }};
     { $value:expr; ? } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtDebug as _;
 		$value.fmt_debug()
     }};
     { $value:expr; b } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtBinary as _;
 		$value.fmt_binary()
     }};
     { $value:expr; h } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtHex as _;
 		$value.fmt_hex()
     }};
     { $value:expr; .$PRECISION:expr } => {{
-        use $crate::write_to::FmtPrecision as _;
-		$value.fmt_precision::<$PRECISION>()
+		#[allow(non_camel_case_types)]
+		trait TempDeref_Unique_20250129_1242_5jfkf {
+			fn temp_deref_unique_20250129_1245_hr3un(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }>;
+		}
+		impl<T> TempDeref_Unique_20250129_1242_5jfkf for T where T: $crate::write_to::FmtPrecision<{ $PRECISION }> {
+			#[inline]
+			fn temp_deref_unique_20250129_1245_hr3un(&self) -> &impl $crate::write_to::FmtPrecision<{ $PRECISION }> {
+				self
+			}
+		}
+		$crate::write_to::FmtPrecision::<{ $PRECISION }>::fmt_precision($value.temp_deref_unique_20250129_1245_hr3un())
     }};
     { $value:expr; std } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdDisplay as _;
 		$value.fmt_std_display()
     }};
     { $value:expr; std? } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdDebug as _;
 		$value.fmt_std_debug()
     }};
     { $value:expr; std b } => {{
+		#[allow(unused_imports)]
         use $crate::write_to::FmtStdBinary as _;
 		$value.fmt_std_binary()
     }};
     { $value:expr; std h } => {{
+		#[allow(unused_imports)]
 		use $crate::write_to::FmtStdHex as _;
 		$value.fmt_std_hex()
     }};
 	{ $value:expr; std .$PRECISION:expr } => {{
-		use $crate::write_to::FmtStdPrecision as _;
-		$value.fmt_std_precision::<$PRECISION>()
+		#[allow(non_camel_case_types)]
+		trait TempDeref_Unique_20250129_1244_9j6as {
+			fn temp_deref_unique_20250129_1246_uid7d(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }>;
+		}
+		impl<T> TempDeref_Unique_20250129_1244_9j6as for T where T: $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
+			#[inline]
+			fn temp_deref_unique_20250129_1246_uid7d(&self) -> &impl $crate::write_to::FmtStdPrecision<{ $PRECISION }> {
+				self
+			}
+		}
+		$crate::write_to::FmtStdPrecision::<{ $PRECISION }>::fmt_std_precision($value.temp_deref_unique_20250129_1246_uid7d())
 	}};
 }
 
 #[doc(hidden)]
 #[macro_export]
 macro_rules! handle_write_error {
-    ($result:expr => { break $lifetime:lifetime err }) => {
-        if let ::core::result::Result::Err(err) = $result {
-            break $lifetime::core::result::Result::Err(err);
+    ($result:expr => { break $lifetime:lifetime { $($tt:tt)* } }) => {
+		$crate::handle_write_error! { $result => { break $lifetime $($tt)* } }
+    };
+    ($result:expr => { break $lifetime:lifetime ! }) => {
+		$crate::handle_write_error! { $result => { ! } }
+    };
+    ($result:expr => { break $lifetime:lifetime ? }) => {
+		if let ::core::result::Result::Err(err) = $result {
+			break $lifetime::core::result::Result::Err(err);
         }
     };
     ($result:expr => { break $lifetime:lifetime }) => {
-        if let ::core::result::Result::Err(_) = $result {
-            break $lifetime;
+		if let ::core::result::Result::Err(_) = $result {
+			break $lifetime;
         }
     };
-    ($result:expr => { return err }) => {
+
+	($result:expr => { return { $($tt:tt)* } }) => {
+		$crate::handle_write_error! { $result => { return $($tt)* } }
+	};
+	($result:expr => { return ! }) => {
+		$crate::handle_write_error! { $result => { ! } }
+	};
+    ($result:expr => { return ? }) => {
         if let ::core::result::Result::Err(err) = $result {
             return ::core::result::Result::Err(err);
         }
@@ -92,13 +137,12 @@ macro_rules! handle_write_error {
             return;
         }
     };
+
     ($result:expr => { ? }) => {
         $result?;
     };
     ($result:expr => { ! }) => {
-        match $result {
-            ::core::result::Result::Ok(()) => {}
-        }
+        match $result { ::core::result::Result::Ok(()) => {} }
     };
 }
 
@@ -245,7 +289,7 @@ macro_rules! len_hint_fmt_single_internal {
 macro_rules! write_fmt_return_internal {
 	($writer:expr => $($fmt:tt)*) => {
 		$(
-			$crate::write_fmt_single_internal! { $writer => $fmt => { return err } }
+			$crate::write_fmt_single_internal! { $writer => $fmt => { return ? } }
 		)*
 	};
 }
@@ -790,52 +834,43 @@ macro_rules! fmt_internal {
 	// (mode = nocapture write)
 	{
 		input: {},
-		output: { $($(internal $fmt:tt)+)? },
+		output: {},
 		args: {
 			mode: nocapture write {
 				writer: $writer:expr,
-				ignore_err: false,
+				err: $err:tt,
+				result: $result:expr,
+				label: $label:lifetime,
 			},
 			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
-		'block: {
-			$(
-				use $crate::write::GetWriteInternal as _;
-				#[allow(irrefutable_let_patterns)]
-				if let writer = $writer.get_write_internal() {
-					$(
-						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block err } }
-					)+
-					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
-				}
-			)?
-			::core::result::Result::Ok(())
-		}
+		$result
 	};
-	// ignore error (mode = nocapture write)
+	// (mode = nocapture write)
 	{
 		input: {},
-		output: { $($(internal $fmt:tt)+)? },
+		output: { $(internal $fmt:tt)+ },
 		args: {
 			mode: nocapture write {
 				writer: $writer:expr,
-				ignore_err: true,
+				handle_err: $handle_err:tt,
+				result: $result:expr,
+				label: $($label:lifetime)?,
 			},
 			ends_in_newline: $ends_in_newline:expr,
 		}
 	} => {
-		'block: {
-			$(
-				use $crate::write::GetWriteInternal as _;
-				#[allow(irrefutable_let_patterns)]
-				if let writer = $writer.get_write_internal() {
-					$(
-						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block } }
-					)+
-					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
-				}
-			)?
+		$($label: )? {
+			use $crate::write::GetWriteInternal as _;
+			#[allow(irrefutable_let_patterns)]
+			if let writer = $writer.get_write_internal() {
+				$(
+					$crate::write_fmt_single_internal! { writer => $fmt => $handle_err }
+				)+
+				$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
+			}
+			$result
 		}
 	};
 	// (mode = nocapture write_inner)
@@ -1243,7 +1278,24 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture write {
 					writer: $writer,
-					ignore_err: false,
+					handle_err: { break 'block ? },
+					result: ::core::result::Result::Ok(()),
+					label: 'block,
+				},
+				ends_in_newline: false,
+			}
+		}
+	};
+	{ (! $writer:expr) => $($tt:tt)* } => {
+		$crate::fmt_internal! {
+			input: { $($tt)* },
+			output: {},
+			args: {
+				mode: nocapture write {
+					writer: $writer,
+					handle_err: { ! },
+					result: (),
+					label:,
 				},
 				ends_in_newline: false,
 			}
@@ -1256,7 +1308,9 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture write {
 					writer: $writer,
-					ignore_err: true,
+					handle_err: { break 'block },
+					result: (),
+					label: 'block,
 				},
 				ends_in_newline: false,
 			}
@@ -1341,17 +1395,10 @@ macro_rules! fmt_unit_struct2 {
 pub fn test() {
     use crate::{
         write::{GetWriteInternal, Write},
-        write_to::{Fmt, FmtAdvanced, FmtDebug, ToString, WriteTo},
+        write_to::{Fmt, FmtAdvanced, FmtDebug, Precision, StdPrecision, ToString, WriteTo},
     };
 
     use core::ops::Deref;
-
-    const fn ends_in_newline<W>(w: &W) -> bool
-    where
-        W: WriteTo + ?Sized,
-    {
-        W::ENDS_IN_NEWLINE
-    }
 
     struct Struct {
         a: i32,
@@ -1490,8 +1537,11 @@ pub fn test() {
     const F: f32 = 12.1234;
     let s = fmt!({} => "999" @[xyz!()] "abc" {@a;std .3} "abc" {F;} "abc");
     let s0 = ToString::to_string(s);
-    // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
 
+    let mut string = String::new();
+    let a = 12.1234_f32;
+    let a = fmt!((string) => "999" @[xyz!()] "abc" {a} "abc" {F;} "abc");
+    let a = 12.12;
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
     }
@@ -1501,4 +1551,7 @@ pub fn test() {
     let s = fmt!({} => "123" @[xyz!()] "abc" {const_fn(1, 2)} "abc");
     // let s = fmt!({ & } => "123" @[xyz!()] "abc" (&const_fn(1, 2) ) "abc");
     let s0 = ToString::to_string(s);
+
+    let b = fmt! { {} => {@a = true;.5}};
+    assert_eq!(b.to_string(), "true ");
 }
