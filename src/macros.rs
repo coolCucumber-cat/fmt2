@@ -104,17 +104,24 @@ macro_rules! get_write_to_from_fmt_args {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! handle_write_error {
-    ($result:expr => { break $lifetime:lifetime err }) => {
-        if let ::core::result::Result::Err(err) = $result {
-            break $lifetime::core::result::Result::Err(err);
+    ($result:expr => { break $lifetime:lifetime { $($tt:tt)* } }) => {
+		$crate::handle_write_error! { $result => { break $lifetime $($tt)* } }
+    };
+    ($result:expr => { break $lifetime:lifetime ? }) => {
+		if let ::core::result::Result::Err(err) = $result {
+			break $lifetime::core::result::Result::Err(err);
         }
     };
     ($result:expr => { break $lifetime:lifetime }) => {
-        if let ::core::result::Result::Err(_) = $result {
-            break $lifetime;
+		if let ::core::result::Result::Err(_) = $result {
+			break $lifetime;
         }
     };
-    ($result:expr => { return err }) => {
+
+	($result:expr => { return { $($tt:tt)* } }) => {
+		$crate::handle_write_error! { $result => { return $($tt)* } }
+	};
+    ($result:expr => { return ? }) => {
         if let ::core::result::Result::Err(err) = $result {
             return ::core::result::Result::Err(err);
         }
@@ -124,13 +131,12 @@ macro_rules! handle_write_error {
             return;
         }
     };
+
     ($result:expr => { ? }) => {
         $result?;
     };
     ($result:expr => { ! }) => {
-        match $result {
-            ::core::result::Result::Ok(()) => {}
-        }
+        match $result { ::core::result::Result::Ok(()) => {} }
     };
 }
 
@@ -265,7 +271,7 @@ macro_rules! len_hint_fmt_single_internal {
 macro_rules! write_fmt_return_internal {
 	($writer:expr => $($fmt:tt)*) => {
 		$(
-			$crate::write_fmt_single_internal! { $writer => $fmt => { return err } }
+			$crate::write_fmt_single_internal! { $writer => $fmt => { return ? } }
 		)*
 	};
 }
@@ -792,7 +798,8 @@ macro_rules! fmt_internal {
 		args: {
 			mode: nocapture write {
 				writer: $writer:expr,
-				ignore_err: false,
+				err: $err:tt,
+				result: $result:expr,
 			},
 			ends_in_newline: $ends_in_newline:expr,
 		}
@@ -803,37 +810,12 @@ macro_rules! fmt_internal {
 				#[allow(irrefutable_let_patterns)]
 				if let writer = $writer.get_write_internal() {
 					$(
-						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block err } }
+						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block $err } }
 					)+
 					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
 				}
 			)?
-			::core::result::Result::Ok(())
-		}
-	};
-	// ignore error (mode = nocapture write)
-	{
-		input: {},
-		output: { $($(internal $fmt:tt)+)? },
-		args: {
-			mode: nocapture write {
-				writer: $writer:expr,
-				ignore_err: true,
-			},
-			ends_in_newline: $ends_in_newline:expr,
-		}
-	} => {
-		'block: {
-			$(
-				use $crate::write::GetWriteInternal as _;
-				#[allow(irrefutable_let_patterns)]
-				if let writer = $writer.get_write_internal() {
-					$(
-						$crate::write_fmt_single_internal! { writer => $fmt => { break 'block } }
-					)+
-					$crate::write::Write::flush_hint_advanced::<true, $ends_in_newline>(writer);
-				}
-			)?
+			$result
 		}
 	};
 	// (mode = nocapture write_inner)
@@ -1241,7 +1223,8 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture write {
 					writer: $writer,
-					ignore_err: false,
+					err: { ? },
+					result: ::core::result::Result::Ok(()),
 				},
 				ends_in_newline: false,
 			}
@@ -1254,7 +1237,8 @@ macro_rules! fmt {
 			args: {
 				mode: nocapture write {
 					writer: $writer,
-					ignore_err: true,
+					err: {},
+					result: (),
 				},
 				ends_in_newline: false,
 			}
@@ -1481,7 +1465,10 @@ pub fn test() {
     const F: f32 = 12.1234;
     let s = fmt!({} => "999" @[xyz!()] "abc" {@a;std .3} "abc" {F;} "abc");
     let s0 = ToString::to_string(s);
-    // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
+
+    let mut string = String::new();
+    let a = 12.1234_f32;
+    let a = fmt!((? string) => "999" @[xyz!()] "abc" {a} "abc" {F;} "abc");
 
     fn const_fn(a: i32, b: i32) -> i32 {
         a + b
