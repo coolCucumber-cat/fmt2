@@ -10,7 +10,8 @@ pub trait Write {
     #[inline]
     fn writeln_str(&mut self, s: &str) -> Result<(), Self::Error> {
         self.write_str(s)?;
-        self.write_newline()
+        // self.write_newline()
+        self.write_str("\n")
     }
 
     #[inline]
@@ -23,7 +24,8 @@ pub trait Write {
     {
         wt.write_to(self)?;
         if NEWLINE {
-            self.write_newline()?;
+            // self.write_newline()?;
+            self.write_str("\n")?;
         }
         // if a newline is the last thing written to a life buffered writer, it's already flushed.
         // only flush if we want to flush and if it isnt already confirmed to be flushed
@@ -55,10 +57,10 @@ pub trait Write {
         self.write_str(c.encode_utf8(&mut [0; 4]))
     }
 
-    #[inline]
-    fn write_newline(&mut self) -> Result<(), Self::Error> {
-        self.write_str("\n")
-    }
+    // #[inline]
+    // fn write_newline(&mut self) -> Result<(), Self::Error> {
+    //     self.write_str("\n")
+    // }
 
     #[inline]
     fn flush_hint(&mut self) {}
