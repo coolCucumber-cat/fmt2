@@ -232,6 +232,7 @@ impl<W> Write for W
 where
     W: WriteInfallible + ?Sized,
 {
+    // type Error = core::convert::Infallible;
     type Error = !;
 
     const IS_LINE_BUFFERED: bool = false;

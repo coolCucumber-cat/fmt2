@@ -1,4 +1,4 @@
-use crate::write::Write;
+use crate::{str::FmtStaticStrImpl, write::Write};
 
 pub trait WriteTo {
     const ENDS_IN_NEWLINE: bool = false;
@@ -31,7 +31,7 @@ impl<T> WriteTo for Debug<[T]>
 where
     T: FmtDebug,
 {
-    crate::fmt! { [s] => "[" @..(s.0 => |e| {e;?} ", ") "]" }
+    crate::fmt! { [s] => "[" @..join(s.0 => ", " => |e| {e;?}) "]" }
 }
 
 pub trait FmtAdvanced {
@@ -83,75 +83,28 @@ where
 
 #[macro_export]
 macro_rules! declare_fmt_wrapper_struct {
-    { $Struct:ident $Trait:ident $fn:ident $(, $($($rest:tt)+)?)? } => {
-        pub struct $Struct<T>(T)
+    { $Struct:ident $(<$(const $CONST:ident : $ConstType:ty),*>)? $Trait:ident $fn:ident $(, $($($rest:tt)+)?)? } => {
+        pub struct $Struct<T $($(, const $CONST: $ConstType)*)?>(T)
         where
             T: ?Sized,
             Self: $crate::write_to::WriteTo;
 
-        pub trait $Trait {
+        pub trait $Trait $(<$(const $CONST: $ConstType),*>)? {
             fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
         }
 
-        impl<T> $Trait for T
+        impl<T $($(, const $CONST: $ConstType)*)?> $Trait $(<$({ $CONST }),*>)? for T
         where
             T: ?Sized,
-            $Struct<T>: $crate::write_to::WriteTo,
+            $Struct<T $($(, { $CONST })*)?>: $crate::write_to::WriteTo,
         {
             #[inline]
             fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
-                unsafe { &*(self as *const Self as *const $Struct<Self>) }
+                unsafe { &*(self as *const Self as *const $Struct<Self $($(, { $CONST })*)?>) }
             }
         }
 
         $($($crate::declare_fmt_wrapper_struct! { $($rest)+ })?)?
-    };
-    { $Struct:ident <$(const $CONST:ident : $ConstType:ty),* $(,)?> $Trait:ident $fn:ident $(, $($($rest:tt)+)?)? } => {
-        pub struct $Struct<T $(, const $CONST: $ConstType)*>(T)
-        where
-            T: ?Sized,
-            $Struct<T $(, { $CONST })*>: $crate::write_to::WriteTo;
-
-        pub trait $Trait {
-            fn $fn<$(const $CONST : $ConstType),*>(&self) -> &$Struct<Self $(, { $CONST })*>
-            where
-                $Struct<Self $(, { $CONST })*>: $crate::write_to::WriteTo;
-        }
-
-        impl<T> $Trait for T
-        where
-            T: ?Sized,
-        {
-            #[inline]
-            fn $fn<$(const $CONST : $ConstType),*>(&self) -> &$Struct<Self $(, { $CONST })*>
-            where
-                $Struct<Self $(, { $CONST })*>: $crate::write_to::WriteTo
-            {
-                unsafe { &*(self as *const Self as *const $Struct<Self $(, $CONST)*>) }
-            }
-        }
-//         pub struct $Struct<T $($(, const $CONST: $ConstType)*)?>(T)
-//         where
-//             T: ?Sized,
-//             Self: $crate::write_to::WriteTo;
-//
-//         pub trait $Trait $(<$(const $CONST: $ConstType),*>)? {
-//             fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized);
-//         }
-//
-//         impl<T $($(, const $CONST: $ConstType)*)?> $Trait $(<$($CONST),*>)? for T
-//             where
-//             T: ?Sized,
-//             $Struct<T $($(, { $CONST })*)?>: $crate::write_to::WriteTo,
-//         {
-//             #[inline]
-//             fn $fn(&self) -> &(impl $crate::write_to::WriteTo + ?Sized) {
-//                 unsafe { &*(self as *const Self as *const $Struct<Self $($(, $CONST)*)?>) }
-//             }
-//         }
-
-        $($($crate::declare_fmt_wrapper_struct! { $($rest)+ })?)?
-
     };
 }
 
@@ -271,6 +224,35 @@ impl WriteTo for Debug<str> {
         W: Write + ?Sized,
     {
         w.write_str(&self.0)
+    }
+}
+
+impl FmtStaticStrImpl for bool {
+    #[inline]
+    fn fmt_static_str_impl(&self) -> &'static str {
+        if *self {
+            "true"
+        } else {
+            "false"
+        }
+    }
+}
+
+impl FmtAdvanced for bool {
+    type Target = str;
+    #[inline]
+    fn fmt_advanced(&self) -> &Self::Target {
+        self.fmt_static_str_impl()
+    }
+}
+
+impl FmtPrecision<5> for bool {
+    fn fmt_precision(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
+        if *self {
+            "true "
+        } else {
+            "false"
+        }
     }
 }
 

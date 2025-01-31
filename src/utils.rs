@@ -45,11 +45,10 @@ pub fn first_line(s: &str) -> &str {
 #[inline]
 #[must_use]
 pub fn first_line_no_debug_assertion(s: &str) -> &str {
-    let s = match s.find('\n') {
+    match s.find('\n') {
         Some(i) => unsafe { s.get_unchecked(..i) },
         None => s,
-    };
-    s
+    }
 }
 
 #[allow(unused)]
