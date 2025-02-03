@@ -126,7 +126,6 @@ pub trait Write {
     {
         #[cfg(feature = "fmt_internals")]
         {
-            let unusawdawdjawdjawd = 1;
             self.std_formatter_adapter(|f| d.fmt(f))
         }
         #[cfg(not(feature = "fmt_internals"))]
@@ -156,16 +155,9 @@ pub trait Write {
     where
         D: core::fmt::Display + ?Sized,
     {
-        #[cfg(not(feature = "formatting_options"))]
-        {
-            self.std_formatter_adapter(|f| d.fmt(f))
-        }
-        #[cfg(feature = "formatting_options")]
-        {
-            let mut options = core::fmt::FormattingOptions::new();
-            options.precision(Some(PRECISION as usize));
-            self.std_formatter_with_options_adapter(options, |f| d.fmt(f))
-        }
+        let mut options = core::fmt::FormattingOptions::new();
+        options.precision(Some(PRECISION as usize));
+        self.std_formatter_with_options_adapter(options, |f| d.fmt(f))
     }
 
     #[inline]
@@ -248,7 +240,7 @@ pub trait Write {
         }
     }
 
-    #[cfg(feature = "formatting_options")]
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn std_formatter_with_options_adapter(
         &mut self,
@@ -267,21 +259,10 @@ pub trait Write {
         &mut self,
         f: impl FnOnce(&mut core::fmt::Formatter) -> core::fmt::Result,
     ) -> Result<(), Self::Error> {
-        #[cfg(feature = "formatting_options")]
-        {
-            self.std_write_adapter(|w| {
-                let formatter =
-                    &mut core::fmt::Formatter::new(w, core::fmt::FormattingOptions::new());
-                f(formatter)
-            })
-        }
-        #[cfg(not(feature = "formatting_options"))]
-        {
-            self.std_write_adapter(|w| {
-                let formatter = &mut core::fmt::Formatter::new(w);
-                f(formatter)
-            })
-        }
+        self.std_write_adapter(|w| {
+            let formatter = &mut core::fmt::Formatter::new(w, core::fmt::FormattingOptions::new());
+            f(formatter)
+        })
     }
 }
 
@@ -326,7 +307,7 @@ impl Write for core::fmt::Formatter<'_> {
         f(self)
     }
 
-    #[cfg(feature = "formatting_options")]
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn std_formatter_with_options_adapter(
         &mut self,

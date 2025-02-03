@@ -162,7 +162,7 @@ macro_rules! write_fmt_single_internal {
 		$($stmt)*
 	};
 	($writer:expr => (@fn($f:expr)) => $handle_error_args:tt) => {
-		($f)($writer);
+		let () = ($f)($writer);
 	};
 	($writer:expr => (@fn?($f:expr)) => $handle_error_args:tt) => {
 		$crate::handle_write_error! {
