@@ -15,7 +15,6 @@ pub use prompt_result_try;
 
 /// Works like [`?`] but for a [`Result`](core::result::Result) which will be converted to a [`TuiResult`](Result)
 #[macro_export]
-#[doc(hidden)]
 macro_rules! to_prompt_result_try {
     ($expr:expr) => {{
         match $expr {
