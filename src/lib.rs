@@ -13,8 +13,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(internal_features)]
 #![cfg_attr(feature = "never_type", feature(never_type))]
-#![cfg_attr(feature = "fmt_internals", feature(fmt_internals))]
-#![cfg_attr(feature = "formatting_options", feature(formatting_options))]
+#![cfg_attr(feature = "fmt_internals", feature(fmt_internals, formatting_options))]
 
 pub mod ansi;
 pub mod macros;
