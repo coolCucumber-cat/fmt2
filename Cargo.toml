@@ -1,6 +1,6 @@
 [package]
 name = "fmt2"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 description = "traits, structs and macros for formatting"
 license = "MIT"
@@ -17,7 +17,7 @@ crossterm = { version = "0.28", optional = true }
 default = [
 	"std",
 	# comment out this line so that each feature is on its own line
-	"dev_nightly",
+	# "dev_nightly",
 ]
 std = []
 
