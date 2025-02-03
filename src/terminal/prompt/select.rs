@@ -329,7 +329,17 @@ where
             // move to new choice
             #[cfg(debug_assertions)]
             {
-                crate::utils::assert_add_no_overflow!(choices_row_offset, new_choice_index)
+                let ::core::option::Option::Some(value) =
+                    choices_row_offset.checked_add(new_choice_index)
+                else {
+                    panic!(concat!(
+                        stringify!(choices_row_offset),
+                        " + ",
+                        stringify!(new_choice_index),
+                        " overflowed"
+                    ));
+                };
+                value
             };
             let new_cursor_y: u16 = choices_row_offset.saturating_add(new_choice_index);
             to_prompt_result_try!(screen_area.move_to_y(new_cursor_y));
