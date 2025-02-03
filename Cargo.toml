@@ -2,6 +2,35 @@
 name = "fmt2"
 version = "0.1.0"
 edition = "2021"
+description = "traits, structs and macros for formatting"
+license = "MIT"
+repository = "https://github.com/coolCucumber-cat/fmt2.git"
+readme = "README.md"
+categories = ["command-line-interface", "no-std::no-alloc", "no-std"]
+keywords = [
+	"fmt2",
+	"fmt",
+	"formatting",
+	"string",
+	"style",
+	"text",
+	"cli",
+	"command line",
+	"color",
+	"colour",
+	"colored",
+	"coloured",
+	"coloring",
+	"colouring",
+]
 
 [dependencies]
 transmute_guard = "0"
+
+[features]
+default = ["std"]
+std = []
+never_type = []
+fmt_internals = []
+formatting_options = ["fmt_internals"]
+nightly = ["never_type", "fmt_internals", "formatting_options"]

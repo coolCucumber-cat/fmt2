@@ -1,0 +1,14 @@
+{
+	"rust-analyzer.cargo.buildScripts.overrideCommand": [
+		"cargo",
+		"+nightly",
+		"clippy",
+		"--features",
+		"nightly",
+		"--quiet",
+		"--workspace",
+		"--message-format=json",
+		"--all-targets",
+		"--keep-going"
+	]
+}

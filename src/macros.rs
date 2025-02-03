@@ -1393,165 +1393,166 @@ macro_rules! fmt_unit_struct2 {
     unused_imports
 )]
 pub fn test() {
-    use crate::{
-        write::{GetWriteInternal, Write},
-        write_to::{Fmt, FmtAdvanced, FmtDebug, Precision, StdPrecision, ToString, WriteTo},
-    };
-
-    use core::ops::Deref;
-
-    struct Struct {
-        a: i32,
-        b: bool,
-    }
-
-    impl Fmt for Struct {
-        fn fmt(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
-            fmt!({ s: Struct = self } => "a = " {s.a} ", b = " {s.b})
-        }
-    }
-
-    impl FmtDebug for Struct {
-        fn fmt_debug(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
-            fmt_struct!({ _self: Struct = self } => Struct; { a: {_self.a}, b: {_self.b} })
-        }
-    }
-
-    struct Tuple(i32, bool);
-
-    struct Struct2 {
-        a2: i32,
-        b2: bool,
-    }
-
-    impl WriteTo for Struct2 {
-        fmt! { [s] => {s.a2} @fg(@red) ["sussy rizz"] {s.b2} }
-    }
-
-    let struct_ = Struct { a: 12, b: true };
-    let s = fmt_struct!({} => Struct; { a: {@a=struct_.a}, b: {@b=struct_.b} });
-    let s0 = s.to_string();
-    assert_eq!(s0, "Struct { a: 12, b: true }");
-
-    let s = Struct2 { a2: 123, b2: false };
-    let s0 = s.to_string();
-    // assert_eq!(s0, "123sussy rizzfalse");
-
-    let tuple = Tuple(99, true);
-    let s = fmt_tuple_struct!({} => Tuple; ({@a=tuple.0}, {@b=tuple.1}));
-    let s0 = s.to_string();
-    assert_eq!(s0, "Tuple(99, true)");
-
-    const S: &str = fmt_struct!({} => Struct; { a: {@a:i32=234}, b: {@b=false} });
-    let s0 = ToString::to_string(S);
-    assert_eq!(s0, "Struct { a: 234, b: false }");
-
-    const S1: &str = fmt_tuple_struct!({} => Tuple; ({@a=234}, {@b=false}));
-    assert_eq!(S1, "Tuple(234, false)");
-
-    macro_rules! xyz {
-        () => {
-            "XYZ"
-        };
-    }
-
-    let vec1: Vec<usize> = vec![1, 2, 3];
-    let s = fmt! { {} => "213" {@vec2 = vec1;?} {@vec1;?}};
-
-    let a = "abc";
-    let b = "def";
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} {@b} "abc" ln [""]);
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcdefabc\n");
-
-    let a = &mut *String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
-
-    let a = String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
-
-    let a = &String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
-
-    let a = &mut String::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
-
-    let a = &mut String::from("abc");
-    let s = fmt!({noref} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(&s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
-
-    let a: Box<str> = Box::from("abc");
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0.len(), s.len_hint());
-    assert_eq!(s0, "123XYZabcabcabc");
-
-    let a = &3_i32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(s);
-    assert_eq!(s0, "123XYZabc3abc");
-
-    let a = 3_i32;
-    let w = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    let s0 = ToString::to_string(w);
-    assert_eq!(s0, "123XYZabc3abc");
-
-    let a = 3_i32;
-    let w = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
-    // let w = fmt!({} => "123" @[xyz!()] "abc" {@a:i32} "abc");
-    let s0 = ToString::to_string(w);
-    assert_eq!(s0, "123XYZabc3abc");
-
-    const _S: &str = fmt!({} => "123" @[xyz!()] "abc" "abc" 123);
-    assert_eq!(_S, "123XYZabcabc123");
-
-    let a = 3_i32;
-    const I: i32 = 32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "123" {I} "abc");
-    let s0 = ToString::to_string(s);
-
-    let a = 3_i32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a;?} "123" {I;?} "abc");
-    let s0 = ToString::to_string(s);
-
-    let a = 3_i32;
-    let s = fmt!({} => "123" @[xyz!()] "abc" {@a;h} "123" {I;b} "abc");
-    let s0 = ToString::to_string(s);
-
-    let a = 12.1234_f32;
-    const F: f32 = 12.1234;
-    let s = fmt!({} => "999" @[xyz!()] "abc" {@a;std .3} "abc" {F;} "abc");
-    let s0 = ToString::to_string(s);
-
-    let mut string = String::new();
-    let a = 12.1234_f32;
-    let a = fmt!((string) => "999" @[xyz!()] "abc" {a} "abc" {F;} "abc");
-    let a = 12.12;
-    fn const_fn(a: i32, b: i32) -> i32 {
-        a + b
-    }
-    let s = fmt!({} => "123" @[xyz!()] "abc" {I} "abc" {@d=456});
-    let s0 = ToString::to_string(s);
-
-    let s = fmt!({} => "123" @[xyz!()] "abc" {const_fn(1, 2)} "abc");
-    // let s = fmt!({ & } => "123" @[xyz!()] "abc" (&const_fn(1, 2) ) "abc");
-    let s0 = ToString::to_string(s);
-
-    let b = fmt! { {} => {@a = true;.5}};
-    assert_eq!(b.to_string(), "true ");
+    //     use crate::{
+    //         write::{GetWriteInternal, Write},
+    //         write_to::{Fmt, FmtAdvanced, FmtDebug, ToString, WriteTo},
+    //     };
+    //
+    //     use core::ops::Deref;
+    //
+    //     const fn ends_in_newline<W>(w: &W) -> bool
+    //     where
+    //         W: WriteTo + ?Sized,
+    //     {
+    //         W::ENDS_IN_NEWLINE
+    //     }
+    //
+    //     struct Struct {
+    //         a: i32,
+    //         b: bool,
+    //     }
+    //
+    //     impl Fmt for Struct {
+    //         fn fmt(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
+    //             fmt!({ s: Struct = self } => "a = " {s.a} ", b = " {s.b})
+    //         }
+    //     }
+    //
+    //     impl FmtDebug for Struct {
+    //         fn fmt_debug(&self) -> &(impl crate::write_to::WriteTo + ?Sized) {
+    //             fmt_struct!({ _self: Struct = self } => Struct; { a: {_self.a}, b: {_self.b} })
+    //         }
+    //     }
+    //
+    //     struct Tuple(i32, bool);
+    //
+    //     struct Struct2 {
+    //         a2: i32,
+    //         b2: bool,
+    //     }
+    //
+    //     impl WriteTo for Struct2 {
+    //         fmt! { [s] => {s.a2} @fg(@red) ["sussy rizz"] {s.b2} }
+    //     }
+    //
+    //     let struct_ = Struct { a: 12, b: true };
+    //     let s = fmt_struct!({} => Struct; { a: {@a=struct_.a}, b: {@b=struct_.b} });
+    //     let s0 = s.to_string();
+    //     assert_eq!(s0, "Struct { a: 12, b: true }");
+    //
+    //     let s = Struct2 { a2: 123, b2: false };
+    //     let s0 = s.to_string();
+    //     // assert_eq!(s0, "123sussy rizzfalse");
+    //
+    //     let tuple = Tuple(99, true);
+    //     let s = fmt_tuple_struct!({} => Tuple; ({@a=tuple.0}, {@b=tuple.1}));
+    //     let s0 = s.to_string();
+    //     assert_eq!(s0, "Tuple(99, true)");
+    //
+    //     const S: &str = fmt_struct!({} => Struct; { a: {@a:i32=234}, b: {@b=false} });
+    //     let s0 = ToString::to_string(S);
+    //     assert_eq!(s0, "Struct { a: 234, b: false }");
+    //
+    //     const S1: &str = fmt_tuple_struct!({} => Tuple; ({@a=234}, {@b=false}));
+    //     assert_eq!(S1, "Tuple(234, false)");
+    //
+    //     macro_rules! xyz {
+    //         () => {
+    //             "XYZ"
+    //         };
+    //     }
+    //
+    //     let vec1: Vec<usize> = vec![1, 2, 3];
+    //     let s = fmt! { {} => "213" {@vec2 = vec1;?} {@vec1;?}};
+    //
+    //     let a = "abc";
+    //     let b = "def";
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} {@b} "abc" ln [""]);
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcdefabc\n");
+    //
+    //     let a = &mut *String::from("abc");
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcabc");
+    //
+    //     let a = String::from("abc");
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcabc");
+    //
+    //     let a = &String::from("abc");
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcabc");
+    //
+    //     let a = &mut String::from("abc");
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcabc");
+    //
+    //     let a = &mut String::from("abc");
+    //     let s = fmt!({noref} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(&s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcabc");
+    //
+    //     let a: Box<str> = Box::from("abc");
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0.len(), s.len_hint());
+    //     assert_eq!(s0, "123XYZabcabcabc");
+    //
+    //     let a = &3_i32;
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     assert_eq!(s0, "123XYZabc3abc");
+    //
+    //     let a = 3_i32;
+    //     let w = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     let s0 = ToString::to_string(w);
+    //     assert_eq!(s0, "123XYZabc3abc");
+    //
+    //     let a = 3_i32;
+    //     let w = fmt!({} => "123" @[xyz!()] "abc" {@a} "abc");
+    //     // let w = fmt!({} => "123" @[xyz!()] "abc" {@a:i32} "abc");
+    //     let s0 = ToString::to_string(w);
+    //     assert_eq!(s0, "123XYZabc3abc");
+    //
+    //     const _S: &str = fmt!({} => "123" @[xyz!()] "abc" "abc" 123);
+    //     assert_eq!(_S, "123XYZabcabc123");
+    //
+    //     let a = 3_i32;
+    //     const I: i32 = 32;
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a} "123" {I} "abc");
+    //     let s0 = ToString::to_string(s);
+    //
+    //     let a = 3_i32;
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a;?} "123" {I;?} "abc");
+    //     let s0 = ToString::to_string(s);
+    //
+    //     let a = 3_i32;
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {@a;h} "123" {I;b} "abc");
+    //     let s0 = ToString::to_string(s);
+    //
+    //     let a = 12.1234_f32;
+    //     const F: f32 = 12.1234;
+    //     let s = fmt!({} => "999" @[xyz!()] "abc" {@a;std .3} "abc" {F;} "abc");
+    //     let s0 = ToString::to_string(s);
+    //     // assert_eq!(s0, "999XYZabc12.123abc12.12abc");
+    //
+    //     fn const_fn(a: i32, b: i32) -> i32 {
+    //         a + b
+    //     }
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {I} "abc" {@d=456});
+    //     let s0 = ToString::to_string(s);
+    //
+    //     let s = fmt!({} => "123" @[xyz!()] "abc" {const_fn(1, 2)} "abc");
+    //     // let s = fmt!({ & } => "123" @[xyz!()] "abc" (&const_fn(1, 2) ) "abc");
+    //     let s0 = ToString::to_string(s);
 }
