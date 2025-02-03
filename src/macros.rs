@@ -890,6 +890,24 @@ macro_rules! fmt_internal {
 		)*
 	};
 
+	// (mode = nocapture generate_fn)
+	{
+		input: {},
+		output: { $(internal $fmt:tt)* },
+		args: {
+			mode: nocapture generate_fn {
+				writer_ty: $($writer_ty:ty)?,
+			},
+			ends_in_newline: $ends_in_newline:expr,
+		}
+	} => {
+		|writer $(: $writer_ty)?| -> ::core::result::Result<(), _> {
+			$(
+				$crate::write_fmt_single_internal! { writer => $fmt => { return ? } }
+			)*
+			::core::result::Result::Ok(())
+		}
+	};
 
 	// empty string (mode = _ generate)
 	{
@@ -1242,6 +1260,18 @@ macro_rules! fmt {
 					name: $name,
 					ty: $ty,
 					value: $value,
+				},
+				ends_in_newline: false,
+			}
+		}
+	};
+	{ { fn $(: $writer_ty:ty)? } => $($tt:tt)* } => {
+		$crate::fmt_internal! {
+			input: { $($tt)* },
+			output: {},
+			args: {
+				mode: nocapture generate_fn {
+					writer_ty: $($writer_ty)?,
 				},
 				ends_in_newline: false,
 			}
