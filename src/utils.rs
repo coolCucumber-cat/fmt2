@@ -54,9 +54,6 @@ pub fn first_line_no_debug_assertion(s: &str) -> &str {
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
-    use core::ascii::Char;
-
-    use crate::write_to::FmtAdvanced;
 
     use super::*;
 
