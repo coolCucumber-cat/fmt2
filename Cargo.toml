@@ -7,23 +7,7 @@ license = "MIT"
 repository = "https://github.com/coolCucumber-cat/fmt2.git"
 readme = "README.md"
 categories = ["command-line-interface", "no-std::no-alloc", "no-std"]
-keywords = [
-	"fmt2",
-	"fmt",
-	"formatting",
-	"string",
-	"style",
-	"text",
-	"cli",
-	"command line",
-	"color",
-	"colour",
-	"colored",
-	"coloured",
-	"coloring",
-	"colouring",
-	"prompts",
-]
+keywords = ["format", "string", "style", "color", "cli"]
 
 [dependencies]
 transmute_guard = "0.2.4"
