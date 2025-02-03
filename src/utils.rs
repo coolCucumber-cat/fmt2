@@ -1,33 +1,3 @@
-macro_rules! assert_add_no_overflow {
-    ($a:expr, $b:expr) => {{
-        let ::core::option::Option::Some(value) = $a.checked_add($b) else {
-            panic!(concat!(
-                stringify!($a),
-                " + ",
-                stringify!($b),
-                " overflowed"
-            ));
-        };
-        value
-    }};
-}
-pub(crate) use assert_add_no_overflow;
-
-// macro_rules! assert_sub_no_underflow {
-//     ($a:expr, $b:expr) => {{
-//         let ::core::option::Option::Some(value) = $a.checked_sub($b) else {
-//             panic!(concat!(
-//                 stringify!($a),
-//                 " - ",
-//                 stringify!($b),
-//                 " underflowed"
-//             ));
-//         };
-//         value
-//     }};
-// }
-// pub(crate) use assert_sub_no_underflow;
-
 #[inline]
 #[must_use]
 pub fn has_newlines(s: &str) -> bool {

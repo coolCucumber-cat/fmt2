@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "fmt2"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "crossterm",
  "transmute_guard",
@@ -192,9 +192,9 @@ checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "transmute_guard"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9c61f43141910adf7ac9c592beabeff9cc7daa2b16fb6aaf72cd9070f6ce39"
+checksum = "baba25269c78303b03e80267cdfc6a3dbd2d9f8c9921d59e3f242be75d401583"
 
 [[package]]
 name = "wasi"
