@@ -1,4 +1,4 @@
-/// Works like [`?`] but for a [`TuiResult`]
+/// Works like [`?`] but for a [`PromptResult`]
 #[macro_export]
 macro_rules! prompt_result_try {
     ($expr:expr) => {{
@@ -13,7 +13,7 @@ macro_rules! prompt_result_try {
 }
 pub use prompt_result_try;
 
-/// Works like [`?`] but for a [`Result`](core::result::Result) which will be converted to a [`TuiResult`](Result)
+/// Works like [`?`] but for a [`Result`](core::result::Result) which will be converted to a [`PromptResult`](Result)
 #[macro_export]
 macro_rules! to_prompt_result_try {
     ($expr:expr) => {{

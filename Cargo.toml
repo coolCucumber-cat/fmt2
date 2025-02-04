@@ -1,6 +1,6 @@
 [package]
 name = "fmt2"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 description = "traits, structs and macros for formatting"
 license = "MIT"
@@ -11,7 +11,7 @@ keywords = ["format", "string", "style", "color", "cli"]
 
 [dependencies]
 transmute_guard = "0.2.5"
-crossterm = { version = "0.28", optional = true }
+crossterm = { version = "0.28.1", optional = true }
 
 [features]
 default = [
@@ -28,19 +28,13 @@ ascii_char_variants = []
 nightly = ["transmute_guard/nightly", "never_type", "fmt_internals", "ascii"]
 
 terminal = []
-event = ["terminal", "dep:crossterm"]
+event = ["terminal", "std", "dep:crossterm"]
 screen_area = ["terminal"]
 prompt = ["terminal", "std"]
 
 info_prompt = ["prompt", "event", "screen_area"]
 select_prompt = ["prompt", "event", "screen_area"]
-unsigned_int_prompt = [
-	"prompt",
-	"event",
-	"screen_area",
-	"ascii",
-	"ascii_char_variants",
-]
+unsigned_int_prompt = ["prompt", "event", "screen_area", "ascii", "ascii_char_variants"]
 
 dev_stable = ["info_prompt", "select_prompt"]
 dev_all_prompts_nightly = ["dev_stable", "unsigned_int_prompt"]
