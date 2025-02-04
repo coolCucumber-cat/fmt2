@@ -1,15 +1,3 @@
-// macro_rules! deref {
-//     ($value:expr => $ty:path) => {{
-//         trait TempDoDeref: $ty {
-//             fn temp_do_deref(&self) -> &Self {
-//                 self
-//             }
-//         }
-//         impl<T> TempDoDeref for T where T: $ty + ?Sized {}
-//         $value.temp_do_deref()
-//     }};
-// }
-
 #[inline]
 #[must_use]
 pub fn has_newlines(s: &str) -> bool {
@@ -54,9 +42,6 @@ pub fn first_line_no_debug_assertion(s: &str) -> &str {
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
-    use core::ascii::Char;
-
-    use crate::write_to::FmtAdvanced;
 
     use super::*;
 
