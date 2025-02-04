@@ -1,0 +1,28 @@
+{
+	// "rust-analyzer.check.overrideCommand": [
+	// 	"cargo",
+	// 	"+nightly",
+	// 	"clippy",
+	// 	"--features",
+	// 	"terminal",
+	// 	// "dev_nightly",
+	// 	"--quiet",
+	// 	// "--workspace",
+	// 	"--message-format=json",
+	// 	// "--all-targets",
+	// 	"--keep-going"
+	// ]
+	// "rust-analyzer.cargo.buildScripts.overrideCommand": [
+	// 	"cargo",
+	// 	"+nightly",
+	// 	"clippy",
+	// 	"--features",
+	// 	"dev_nightly",
+	// 	"--quiet",
+	// 	// "--workspace",
+	// 	"--message-format=json",
+	// 	// "--all-targets",
+	// 	"--keep-going"
+	// ]
+	"rust-analyzer.cargo.cfgs": ["debug_assertions", "miri", "feature = 'dev_nightly'"]
+}

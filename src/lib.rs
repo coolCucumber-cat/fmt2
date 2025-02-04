@@ -7,39 +7,21 @@
 //! - macros to declare structs for formatting not just using
 //! - clean up
 //! - testing
-//! - git and github
-//! - reduce repetetion use good style and techniques. more macro recursion instead of repetition
-//! - reduce repetition by avoiding polishing work at start (move all resposibility to fmt_write)
-//! - make fmt to fmt_advanced with optional args
-//! - better naming for macros
-//! - reduce repetition in fmt structs (no unit struct, just field struct with no fields)
 //! - better name for fmt structs (FmtTemp etc...)
-//! - colours and styling (ascii only, no win7 (win10 is almost obsolete, so win7 definitely not worth it either, also no devs use win7))
-//! - manage error handling outside of write_fmt_single instead of inside macro
-//! - make fmt do everything, including write and generate
-//! - flush hint in write
-//! - custom fmtable with closure
-//! - put all styling in fmt macro
-//! - lock stdout and stderr
+//! - make fmt_advanced impl writeto and make writeto impl fmt (maybe rename fmtadvanced to prefmt)
 
-#![expect(internal_features)]
-#![feature(
-    never_type,
-    unwrap_infallible,
-    fmt_internals,
-    formatting_options,
-    ascii_char,
-    ascii_char_variants,
-    // concat_idents,
-    // try_blocks,
-    // specialization,
-    // min_specialization,
-    // impl_trait_in_assoc_type
-)]
+#![allow(internal_features)]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "never_type", feature(never_type))]
+#![cfg_attr(feature = "fmt_internals", feature(fmt_internals, formatting_options))]
+#![cfg_attr(feature = "ascii", feature(ascii_char))]
+#![cfg_attr(feature = "ascii_char_variants", feature(ascii_char_variants))]
+
 pub mod ansi;
 pub mod macros;
-pub mod screen_area;
 pub mod str;
+#[cfg(feature = "terminal")]
+pub mod terminal;
 pub mod utils;
 pub mod write;
 pub mod write_to;

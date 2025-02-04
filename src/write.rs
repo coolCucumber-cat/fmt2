@@ -79,7 +79,14 @@ pub trait Write {
     where
         D: core::fmt::Display + ?Sized,
     {
-        self.std_formatter_adapter(|f| d.fmt(f))
+        #[cfg(feature = "fmt_internals")]
+        {
+            self.std_formatter_adapter(|f| d.fmt(f))
+        }
+        #[cfg(not(feature = "fmt_internals"))]
+        {
+            self.write_std_args(core::format_args!("{d}"))
+        }
     }
 
     #[inline]
@@ -87,7 +94,14 @@ pub trait Write {
     where
         D: core::fmt::Debug + ?Sized,
     {
-        self.std_formatter_adapter(|f| d.fmt(f))
+        #[cfg(feature = "fmt_internals")]
+        {
+            self.std_formatter_adapter(|f| d.fmt(f))
+        }
+        #[cfg(not(feature = "fmt_internals"))]
+        {
+            self.write_std_args(core::format_args!("{d:?}"))
+        }
     }
 
     #[inline]
@@ -95,7 +109,14 @@ pub trait Write {
     where
         D: core::fmt::Binary + ?Sized,
     {
-        self.std_formatter_adapter(|f| d.fmt(f))
+        #[cfg(feature = "fmt_internals")]
+        {
+            self.std_formatter_adapter(|f| d.fmt(f))
+        }
+        #[cfg(not(feature = "fmt_internals"))]
+        {
+            self.write_std_args(core::format_args!("{d:b}"))
+        }
     }
 
     #[inline]
@@ -103,7 +124,14 @@ pub trait Write {
     where
         D: core::fmt::Octal + ?Sized,
     {
-        self.std_formatter_adapter(|f| d.fmt(f))
+        #[cfg(feature = "fmt_internals")]
+        {
+            self.std_formatter_adapter(|f| d.fmt(f))
+        }
+        #[cfg(not(feature = "fmt_internals"))]
+        {
+            self.write_std_args(core::format_args!("{d:o}"))
+        }
     }
 
     #[inline]
@@ -111,9 +139,17 @@ pub trait Write {
     where
         D: core::fmt::UpperHex + ?Sized,
     {
-        self.std_formatter_adapter(|f| d.fmt(f))
+        #[cfg(feature = "fmt_internals")]
+        {
+            self.std_formatter_adapter(|f| d.fmt(f))
+        }
+        #[cfg(not(feature = "fmt_internals"))]
+        {
+            self.write_std_args(core::format_args!("{d:X}"))
+        }
     }
 
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn write_std_precision<D, const PRECISION: u8>(&mut self, d: &D) -> Result<(), Self::Error>
     where
@@ -204,6 +240,7 @@ pub trait Write {
         }
     }
 
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn std_formatter_with_options_adapter(
         &mut self,
@@ -216,6 +253,7 @@ pub trait Write {
         })
     }
 
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn std_formatter_adapter(
         &mut self,
@@ -232,8 +270,10 @@ impl<W> Write for W
 where
     W: WriteInfallible + ?Sized,
 {
-    // type Error = core::convert::Infallible;
+    #[cfg(feature = "never_type")]
     type Error = !;
+    #[cfg(not(feature = "never_type"))]
+    type Error = ::core::convert::Infallible;
 
     const IS_LINE_BUFFERED: bool = false;
 
@@ -267,6 +307,7 @@ impl Write for core::fmt::Formatter<'_> {
         f(self)
     }
 
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn std_formatter_with_options_adapter(
         &mut self,
@@ -277,6 +318,7 @@ impl Write for core::fmt::Formatter<'_> {
         f(formatter)
     }
 
+    #[cfg(feature = "fmt_internals")]
     #[inline]
     fn std_formatter_adapter(
         &mut self,
@@ -307,6 +349,7 @@ pub trait WriteInfallible {
     // }
 }
 
+#[cfg(feature = "std")]
 impl WriteInfallible for String {
     #[inline]
     fn write_str_infallible(&mut self, s: &str) {
@@ -373,9 +416,10 @@ macro_rules! impl_write_flush_for_io_write {
 	};
 }
 
-impl_write_flush_for_io_write!(
+#[cfg(feature = "std")]
+impl_write_flush_for_io_write! {
     std::io::Stdout,
     std::io::StdoutLock<'_>,
     std::io::Stderr,
     std::io::StderrLock<'_>
-);
+}
