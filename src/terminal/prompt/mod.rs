@@ -32,7 +32,7 @@ impl std::process::Termination for Quit {
     }
 }
 
-pub type Terminate<E> = core::result::Result<Quit, E>;
+pub type Terminate<E = std::io::Error> = core::result::Result<Quit, E>;
 
 /// Result of interactions with the user in the terminal
 /// # Variants
@@ -48,7 +48,7 @@ pub type Terminate<E> = core::result::Result<Quit, E>;
 ///   - ### [`Err(PromptError)`](Err)
 ///     Some error occured and we should quit the program
 #[doc(alias = "PromptResult")]
-pub type Result<T, E> = ControlFlow<Terminate<E>, ControlFlow<Back, T>>;
+pub type Result<T, E = std::io::Error> = ControlFlow<Terminate<E>, ControlFlow<Back, T>>;
 
 pub trait PromptWith<W>
 where
