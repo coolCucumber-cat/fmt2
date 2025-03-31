@@ -46,6 +46,15 @@ enum FmtModeInternal {
     None,
 }
 
+impl Parse for FmtModeInternal {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        match input.parse::<Lifetime>() {
+            Ok(lifetime) => Ok(Self::Internal { lifetime }),
+            Err(_) => Ok(Self::None),
+        }
+    }
+}
+
 enum FmtMode {
     Write {
         writer: Writer,
@@ -53,43 +62,34 @@ enum FmtMode {
         internal: FmtModeInternal,
     },
     ToString,
-    GenerateFn(Ident),
 }
 
 impl Parse for FmtMode {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        if input.parse::<kw::str>().is_ok() {
-            Ok(Self::ToString)
-        } else if let Ok(content) = parse_round_brackets(input) {
-            let internal = if content.parse::<Token![@]>().is_ok() {
-                FmtModeInternal::Internal {
-                    lifetime: content.parse::<Lifetime>()?,
-                }
-            } else {
-                FmtModeInternal::None
-            };
+        let content = parse_round_brackets(input)?;
 
-            let fallible = content.parse::<Token![?]>().is_ok();
-
-            let writer = if content.parse::<Token![#]>().is_ok() {
-                let err = content.parse::<kw::err>().is_ok();
-                let lock = content.parse::<kw::lock>().is_ok();
-                Writer::Std { err, lock }
-            } else {
-                let writer = content.parse::<Expr>()?;
-                Writer::Expr(writer)
-            };
-
-            Ok(Self::Write {
-                writer,
-                fallible,
-                internal,
-            })
-        } else {
-            let content = parse_curly_brackets(input)?;
-            let ident = content.parse::<Ident>()?;
-            Ok(Self::GenerateFn(ident))
+        if content.is_empty() {
+            return Ok(Self::ToString);
         }
+
+        let internal = content.parse::<FmtModeInternal>()?;
+
+        let fallible = content.parse::<Token![?]>().is_ok();
+
+        let writer = if content.parse::<Token![#]>().is_ok() {
+            let err = content.parse::<kw::err>().is_ok();
+            let lock = content.parse::<kw::lock>().is_ok();
+            Writer::Std { err, lock }
+        } else {
+            let writer = content.parse::<Expr>()?;
+            Writer::Expr(writer)
+        };
+
+        Ok(Self::Write {
+            writer,
+            fallible,
+            internal,
+        })
     }
 }
 
