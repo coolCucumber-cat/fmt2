@@ -3,8 +3,6 @@ use crate::write_to::WriteTo;
 pub trait Write {
     type Error;
 
-    const IS_LINE_BUFFERED: bool;
-
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error>;
 
     #[inline]
@@ -27,10 +25,7 @@ pub trait Write {
             // self.write_newline()?;
             self.write_str("\n")?;
         }
-        // if a newline is the last thing written to a life buffered writer, it's already flushed.
-        // only flush if we want to flush and if it isnt already confirmed to be flushed
-        // we would use `flsuh_advanced` if we could, but it is not allowed, due to the generic
-        if FLUSH && !(Self::IS_LINE_BUFFERED && (NEWLINE || WT::ENDS_IN_NEWLINE)) {
+        if FLUSH {
             self.flush_hint();
         }
         Ok(())
@@ -64,15 +59,6 @@ pub trait Write {
 
     #[inline]
     fn flush_hint(&mut self) {}
-
-    #[inline]
-    fn flush_hint_advanced<const FLUSH: bool, const BUFFER_ENDS_IN_NEWLINE: bool>(&mut self) {
-        // if a newline is the last thing written to a life buffered writer, it's already flushed.
-        // only flush if we want to flush and if it isnt already confirmed to be flushed
-        if FLUSH && !(BUFFER_ENDS_IN_NEWLINE && Self::IS_LINE_BUFFERED) {
-            self.flush_hint();
-        }
-    }
 
     #[inline]
     fn write_std_display<D>(&mut self, d: &D) -> Result<(), Self::Error>
@@ -275,8 +261,6 @@ where
     #[cfg(not(feature = "never_type"))]
     type Error = ::core::convert::Infallible;
 
-    const IS_LINE_BUFFERED: bool = false;
-
     #[inline]
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
         self.write_str_infallible(s);
@@ -286,8 +270,6 @@ where
 
 impl Write for core::fmt::Formatter<'_> {
     type Error = core::fmt::Error;
-
-    const IS_LINE_BUFFERED: bool = false;
 
     #[inline]
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
@@ -390,8 +372,6 @@ macro_rules! impl_write_flush_for_io_write {
 		$(
 			impl $crate::write::Write for $ty {
 				type Error = ::std::io::Error;
-
-                const IS_LINE_BUFFERED: bool = true;
 
 				#[inline]
 				fn write_str(&mut self, s: &str) -> ::core::result::Result<(), Self::Error> {

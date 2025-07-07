@@ -11,7 +11,7 @@ keywords = ["format", "string", "style", "color", "cli"]
 
 [dependencies]
 transmute_guard = "0.2.5"
-crossterm = { version = "0.28.1", optional = true }
+crossterm = { version = "0.29", optional = true }
 
 [features]
 default = [

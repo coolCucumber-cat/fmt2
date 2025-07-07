@@ -1423,6 +1423,7 @@ macro_rules! fmt_unit_struct2 {
     unused_imports
 )]
 pub fn test() {
+
     //     use crate::{
     //         write::{GetWriteInternal, Write},
     //         write_to::{Fmt, FmtAdvanced, FmtDebug, ToString, WriteTo},
